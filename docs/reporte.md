@@ -3,7 +3,7 @@
 **Universidad de Carabobo, Facultad Experimental de Ciencias y Tecnología**
 **CAO604 Lenguajes de Programación, Asignación #1, semestre 1-2026**
 
-Integrantes: (completar)
+Integrantes: Fabián Tovar y Saúl Vargas
 
 Repositorio: https://github.com/l1nk26/proyecto-lenguajes-de-programacion
 
@@ -11,9 +11,9 @@ Repositorio: https://github.com/l1nk26/proyecto-lenguajes-de-programacion
 
 ### 1.1 Lua y su forma de ejecución
 
-El proyecto está escrito en Lua 5.4 y fue probado con el intérprete oficial en su versión 5.4.6. La especificación de referencia que se usa en todo el reporte es el *Lua 5.4 Reference Manual* (Ierusalimschy et al., 2020). Las citas a ese manual indican la sección con el símbolo §, por ejemplo §2.1.
+El proyecto está escrito en Lua 5.4 y fue probado con el intérprete oficial en su versión 5.4.6. La especificación de referencia que se usa en todo el reporte es el *Lua 5.4 Reference Manual* (Ierusalimschy et al., 2020). Las citas a ese manual indican entre paréntesis la sección consultada, por ejemplo (Ierusalimschy et al., 2020, sección 2.1).
 
-El programa se inicia con la orden `lua src/main.lua`. Lua no exige un paso de compilación separado como C o Rust: el intérprete lee el archivo, lo traduce a instrucciones de su propia máquina virtual y ejecuta esas instrucciones de inmediato (Ierusalimschy et al., 2020, §3.3.2). Esa traducción comprueba que la sintaxis sea correcta, pero no revisa tipos. Las consecuencias de esa decisión del lenguaje se explican en la sección 4.
+El programa se inicia con la orden `lua src/main.lua`. Lua no exige un paso de compilación separado como C o Rust: el intérprete lee el archivo, lo traduce a instrucciones de su propia máquina virtual y ejecuta esas instrucciones de inmediato (Ierusalimschy et al., 2020, sección 3.3.2). Esa traducción comprueba que la sintaxis sea correcta, pero no revisa tipos. Las consecuencias de esa decisión del lenguaje se explican en la sección 4.
 
 ### 1.2 Módulos del programa
 
@@ -47,7 +47,7 @@ end
 return M
 ```
 
-La función `require` busca el archivo en las rutas que indica la variable `package.path`, lo ejecuta una sola vez y guarda en `package.loaded` la tabla que el archivo devolvió (Ierusalimschy et al., 2020, §6.3). Si dos módulos piden `require("value")`, ambos reciben exactamente la misma tabla. Para que la búsqueda funcione sin importar desde qué carpeta se lance el programa, `main.lua` agrega la carpeta donde está el propio archivo al principio de esas rutas:
+La función `require` busca el archivo en las rutas que indica la variable `package.path`, lo ejecuta una sola vez y guarda en `package.loaded` la tabla que el archivo devolvió (Ierusalimschy et al., 2020, sección 6.3). Si dos módulos piden `require("value")`, ambos reciben exactamente la misma tabla. Para que la búsqueda funcione sin importar desde qué carpeta se lance el programa, `main.lua` agrega la carpeta donde está el propio archivo al principio de esas rutas:
 
 ```lua
 local script_dir = arg and arg[0] and arg[0]:match("^(.*[/\\])") or "./"
@@ -80,7 +80,7 @@ Al terminar, el único valor en la pila es el resultado, 14.
 
 ### 2.2 La pila en Lua
 
-Lua no trae un tipo "pila". Su única estructura de datos es la tabla (Ierusalimschy et al., 2020, §2.1), que puede usarse como lista si sus claves son los enteros 1, 2, 3 y siguientes sin huecos. El operador `#` devuelve la cantidad de elementos de una lista así (§3.4.7), de modo que el tope es el elemento `stack[#stack]`. Apilar consiste en escribir en la posición siguiente al tope, y desapilar consiste en llamar a `table.remove`, que sin indicar posición quita y devuelve el último elemento (§6.6):
+Lua no trae un tipo "pila". Su única estructura de datos es la tabla (Ierusalimschy et al., 2020, sección 2.1), que puede usarse como lista si sus claves son los enteros 1, 2, 3 y siguientes sin huecos. El operador `#` devuelve la cantidad de elementos de una lista así (sección 3.4.7), de modo que el tope es el elemento `stack[#stack]`. Apilar consiste en escribir en la posición siguiente al tope, y desapilar consiste en llamar a `table.remove`, que sin indicar posición quita y devuelve el último elemento (sección 6.6):
 
 ```lua
 local function push(stack, value)
@@ -133,7 +133,7 @@ Cuando el usuario escribe una línea y pulsa Enter, el bucle de `repl.lua` la re
 
 ### 2.4 Tokenizador
 
-El tokenizador convierte la línea en una lista de tokens. Un token es una tabla con tres campos: la clase de la palabra, el texto original (llamado lexema) y la columna donde empieza. Para recorrer las palabras usa `string.gmatch` con el patrón `"()(%S+)"`. `%S+` significa "uno o más caracteres que no sean espacio", y la captura vacía `()` devuelve la posición en que empieza cada coincidencia (Ierusalimschy et al., 2020, §6.4.1):
+El tokenizador convierte la línea en una lista de tokens. Un token es una tabla con tres campos: la clase de la palabra, el texto original (llamado lexema) y la columna donde empieza. Para recorrer las palabras usa `string.gmatch` con el patrón `"()(%S+)"`. `%S+` significa "uno o más caracteres que no sean espacio", y la captura vacía `()` devuelve la posición en que empieza cada coincidencia (Ierusalimschy et al., 2020, sección 6.4.1):
 
 ```lua
 function M.tokenize(line)
@@ -224,9 +224,9 @@ Cuando una línea produce un error, la evaluación se detiene en ese punto y el 
 
 ### 3.1 Nombres en Lua
 
-En Lua un nombre puede contener letras sin acentos, dígitos y el guion bajo; no puede empezar con un dígito ni ser una palabra reservada del lenguaje, como `local`, `function` o `end`. Las mayúsculas y minúsculas se distinguen, así que `Value` y `value` son nombres diferentes (Ierusalimschy et al., 2020, §3.1). El Mini-REPL adopta la misma regla para sus variables mediante el patrón `^[%a_][%w_]*$`: una letra o guion bajo seguida de letras, dígitos o guiones bajos. También tiene sus propias palabras reservadas, `begin`, `end`, `vars`, `exit`, `quit`, `true` y `false`, que el tokenizador clasifica antes de considerar que algo es un nombre.
+En Lua un nombre puede contener letras sin acentos, dígitos y el guion bajo; no puede empezar con un dígito ni ser una palabra reservada del lenguaje, como `local`, `function` o `end`. Las mayúsculas y minúsculas se distinguen, así que `Value` y `value` son nombres diferentes (Ierusalimschy et al., 2020, sección 3.1). El Mini-REPL adopta la misma regla para sus variables mediante el patrón `^[%a_][%w_]*$`: una letra o guion bajo seguida de letras, dígitos o guiones bajos. También tiene sus propias palabras reservadas, `begin`, `end`, `vars`, `exit`, `quit`, `true` y `false`, que el tokenizador clasifica antes de considerar que algo es un nombre.
 
-Lua distingue entre variables locales y globales. Una variable es local si se declara con la palabra `local`; cualquier otro nombre se considera global. Los nombres globales no son un mecanismo aparte: el lenguaje traduce cada nombre global `x` a una consulta en una tabla especial, de modo que `x` equivale a `_ENV.x` (§2.2). Escribir una variable global es, en el fondo, escribir un campo en esa tabla compartida por todo el programa.
+Lua distingue entre variables locales y globales. Una variable es local si se declara con la palabra `local`; cualquier otro nombre se considera global. Los nombres globales no son un mecanismo aparte: el lenguaje traduce cada nombre global `x` a una consulta en una tabla especial, de modo que `x` equivale a `_ENV.x` (sección 2.2). Escribir una variable global es, en el fondo, escribir un campo en esa tabla compartida por todo el programa.
 
 En el proyecto todas las variables y funciones auxiliares son locales, y lo único que cada módulo hace visible son los campos de su tabla `M`. Esto evita que dos módulos usen por accidente el mismo nombre global. Un ejemplo concreto del riesgo está en el evaluador. Allí se escribe `local _, err` antes de las asignaciones `_, err = M.push_number(lexeme, stack)`. Sin el `local`, Lua crearía una variable global llamada `_` en cada evaluación, visible desde todo el programa, sin mostrar ningún aviso.
 
@@ -234,7 +234,7 @@ En el proyecto todas las variables y funciones auxiliares son locales, y lo úni
 
 La vinculación (en inglés *binding*) es la asociación entre un nombre y aquello que representa: un valor, una posición de memoria o un tipo. Interesa saber cuándo se establece esa asociación, si al escribir el programa, al traducirlo o mientras se ejecuta.
 
-En Lua las variables no tienen tipo; los tipos pertenecen a los valores (Ierusalimschy et al., 2020, §2.1). Por eso un nombre nunca queda vinculado a un tipo y la misma variable puede contener un número en un momento y una tabla en otro. Lo que sí se vincula, y en dos momentos distintos, es el nombre con su lugar de almacenamiento. Para una variable local, la traducción del archivo ya decide a qué variable se refiere cada aparición del nombre, mirando solo el texto del programa; en la máquina virtual de Lua cada variable local ocupa una posición fija, asignada en ese momento (Ierusalimschy et al., 2005). Para una variable global, la asociación se resuelve durante la ejecución, cada vez que se consulta la tabla `_ENV`. El valor siempre se vincula durante la ejecución, cuando se ejecuta la asignación.
+En Lua las variables no tienen tipo; los tipos pertenecen a los valores (Ierusalimschy et al., 2020, sección 2.1). Por eso un nombre nunca queda vinculado a un tipo y la misma variable puede contener un número en un momento y una tabla en otro. Lo que sí se vincula, y en dos momentos distintos, es el nombre con su lugar de almacenamiento. Para una variable local, la traducción del archivo ya decide a qué variable se refiere cada aparición del nombre, mirando solo el texto del programa; en la máquina virtual de Lua cada variable local ocupa una posición fija, asignada en ese momento (Ierusalimschy et al., 2005). Para una variable global, la asociación se resuelve durante la ejecución, cada vez que se consulta la tabla `_ENV`. El valor siempre se vincula durante la ejecución, cuando se ejecuta la asignación.
 
 El Mini-REPL tiene su propia vinculación, que ocurre en tres momentos. En el primero, el tokenizador decide que una palabra es un nombre y no un número ni un operador. En el segundo, cuando el evaluador encuentra ese nombre, `push_variable` busca su valor actual y lo coloca en la pila junto con el nombre:
 
@@ -253,7 +253,7 @@ La ficha guarda el valor en el momento de apilarse, y no lo busca después, para
 
 ### 3.3 Estructuras de control
 
-Lua ofrece `if` con `elseif` y `else`, los bucles `while` y `repeat`, el `for` numérico y el `for` genérico, que recorre lo que devuelve una función iteradora (Ierusalimschy et al., 2020, §3.3.4 y §3.3.5). Para salir antes de tiempo están `break` y `return`. Lua no tiene una instrucción `switch` para elegir entre muchos casos.
+Lua ofrece `if` con `elseif` y `else`, los bucles `while` y `repeat`, el `for` numérico y el `for` genérico, que recorre lo que devuelve una función iteradora (Ierusalimschy et al., 2020, secciones 3.3.4 y 3.3.5). Para salir antes de tiempo están `break` y `return`. Lua no tiene una instrucción `switch` para elegir entre muchos casos.
 
 El REPL usa un `while true do` del que se sale con `break` cuando llega `exit` o cuando la entrada se termina. El evaluador recorre los tokens con un `for` genérico sobre `ipairs`, que entrega cada posición de la lista en orden junto con su elemento. Para elegir qué hacer con cada token usa una cadena de `if` y `elseif` sobre su clase:
 
@@ -297,7 +297,7 @@ El `return` dentro del bucle es el que hace que la evaluación se detenga en el 
 
 ### 3.4 Reglas de alcance de Lua
 
-El alcance de un nombre es la parte del programa donde ese nombre puede usarse. Lua tiene alcance léxico: el alcance de una variable local empieza en la instrucción siguiente a su declaración y termina al final del bloque más interno que la contiene (Ierusalimschy et al., 2020, §3.5). Un bloque es, por ejemplo, el cuerpo de una función o lo que queda entre `do` y `end`. Como el alcance depende solo de la posición en el texto, basta leer el código para saber a qué variable se refiere cada nombre.
+El alcance de un nombre es la parte del programa donde ese nombre puede usarse. Lua tiene alcance léxico: el alcance de una variable local empieza en la instrucción siguiente a su declaración y termina al final del bloque más interno que la contiene (Ierusalimschy et al., 2020, sección 3.5). Un bloque es, por ejemplo, el cuerpo de una función o lo que queda entre `do` y `end`. Como el alcance depende solo de la posición en el texto, basta leer el código para saber a qué variable se refiere cada nombre.
 
 Si dentro de un bloque se declara una variable con el mismo nombre que una exterior, la interior oculta a la exterior hasta que el bloque termina. Este ocultamiento se llama *shadowing*. El siguiente fragmento de Lua muestra exactamente el comportamiento que el Mini-REPL debe reproducir con `begin` y `end`:
 
@@ -395,17 +395,17 @@ La respuesta es `[max_depth_exceeded] se alcanzó el límite de 1000 bloques ani
 
 ### 4.1 Tipos en Lua y momento del chequeo
 
-Lua tiene ocho tipos básicos: `nil`, `boolean`, `number`, `string`, `function`, `userdata`, `thread` y `table` (Ierusalimschy et al., 2020, §2.1). La función `type` devuelve el nombre del tipo de cualquier valor. Desde la versión 5.3 el tipo `number` tiene dos variantes internas, entero y decimal, y en la versión estándar ambos ocupan 64 bits. La función `math.type` permite distinguirlas: devuelve `"integer"`, `"float"`, o `nil` si lo que recibe no es un número (§6.7).
+Lua tiene ocho tipos básicos: `nil`, `boolean`, `number`, `string`, `function`, `userdata`, `thread` y `table` (Ierusalimschy et al., 2020, sección 2.1). La función `type` devuelve el nombre del tipo de cualquier valor. Desde la versión 5.3 el tipo `number` tiene dos variantes internas, entero y decimal, y en la versión estándar ambos ocupan 64 bits. La función `math.type` permite distinguirlas: devuelve `"integer"`, `"float"`, o `nil` si lo que recibe no es un número (sección 6.7).
 
-Lua es un lenguaje de tipado dinámico. El manual lo expresa así: las variables no tienen tipos, solo los valores los tienen, y no existen definiciones de tipos en el lenguaje (§2.1). La diferencia con un lenguaje de tipado estático, como Rust o Go, está en el momento en que se detectan los errores de tipos. En un lenguaje estático el compilador revisa el programa antes de ejecutarlo y rechaza, por ejemplo, una suma entre un número y un booleano. En Lua la traducción del archivo no hace esa revisión; el error aparece en el instante en que la suma se ejecuta. Lua tampoco realiza inferencia de tipos, entendida como deducir el tipo de cada variable a partir del código, porque no hay tipos declarados que deducir.
+Lua es un lenguaje de tipado dinámico. El manual lo expresa así: las variables no tienen tipos, solo los valores los tienen, y no existen definiciones de tipos en el lenguaje (sección 2.1). La diferencia con un lenguaje de tipado estático, como Rust o Go, está en el momento en que se detectan los errores de tipos. En un lenguaje estático el compilador revisa el programa antes de ejecutarlo y rechaza, por ejemplo, una suma entre un número y un booleano. En Lua la traducción del archivo no hace esa revisión; el error aparece en el instante en que la suma se ejecuta. Lua tampoco realiza inferencia de tipos, entendida como deducir el tipo de cada variable a partir del código, porque no hay tipos declarados que deducir.
 
 Lo que Lua hace cuando encuentra una operación inválida es lanzar un error. La expresión `5 + true` produce el mensaje `attempt to perform arithmetic on a boolean value` y, si nadie lo atrapa, termina el programa. De forma parecida, `true < 1` produce `attempt to compare boolean with number`. Por eso el evaluador no deja que Lua descubra el problema: revisa los tipos antes de operar y, si no corresponden, devuelve un error controlado que el REPL muestra sin interrumpir la sesión.
 
-Hay además un caso en que Lua convierte tipos por su cuenta: en una operación aritmética, un texto que parece número se convierte en número, de modo que `"10" + 1` da `11` (§3.4.3). El evaluador nunca queda expuesto a esa conversión, porque los números llegan de la consola como texto y se convierten explícitamente con `tonumber` antes de entrar a la pila. Las operaciones del evaluador solo reciben valores ya convertidos.
+Hay además un caso en que Lua convierte tipos por su cuenta: en una operación aritmética, un texto que parece número se convierte en número, de modo que `"10" + 1` da `11` (sección 3.4.3). El evaluador nunca queda expuesto a esa conversión, porque los números llegan de la consola como texto y se convierten explícitamente con `tonumber` antes de entrar a la pila. Las operaciones del evaluador solo reciben valores ya convertidos.
 
 ### 4.2 Equivalencia de tipos
 
-La equivalencia de tipos responde a la pregunta de cuándo dos valores son del mismo tipo. Algunos lenguajes comparan el nombre con que se declaró el tipo y otros comparan su estructura, es decir, qué campos tiene. En Lua la pregunta casi no existe para las tablas: todas son del tipo `table`, sin importar qué campos tengan. Dos tablas con los mismos campos tampoco son iguales entre sí; el operador `==` compara tablas por identidad, y dos tablas solo son iguales si son la misma (Ierusalimschy et al., 2020, §3.4.4).
+La equivalencia de tipos responde a la pregunta de cuándo dos valores son del mismo tipo. Algunos lenguajes comparan el nombre con que se declaró el tipo y otros comparan su estructura, es decir, qué campos tiene. En Lua la pregunta casi no existe para las tablas: todas son del tipo `table`, sin importar qué campos tengan. Dos tablas con los mismos campos tampoco son iguales entre sí; el operador `==` compara tablas por identidad, y dos tablas solo son iguales si son la misma (Ierusalimschy et al., 2020, sección 3.4.4).
 
 El evaluador define su propia noción de tipo con el campo `kind` de cada valor, que contiene un texto como `"int"` o `"bool"`. Dos valores son del mismo tipo cuando sus textos son iguales, y los textos en Lua sí se comparan por su contenido. Se trata, entonces, de una equivalencia por nombre: lo que cuenta es la etiqueta que el valor lleva, no los campos que tiene.
 
@@ -520,7 +520,7 @@ Las reglas resultantes son las siguientes.
 | `<` `>` | dos números | Bool |
 | `==` `!=` | dos números o dos booleanos | Bool |
 
-Las tres primeras filas siguen lo que hace Lua con sus propios números. Cuando los dos operandos son enteros, Lua suma, resta y multiplica como enteros; si alguno es decimal, convierte ambos a decimal (Ierusalimschy et al., 2020, §3.4.1). La función `number_value` traslada ese resultado a la etiqueta correcta y, además, comprueba que quepa en el tipo correspondiente:
+Las tres primeras filas siguen lo que hace Lua con sus propios números. Cuando los dos operandos son enteros, Lua suma, resta y multiplica como enteros; si alguno es decimal, convierte ambos a decimal (Ierusalimschy et al., 2020, sección 3.4.1). La función `number_value` traslada ese resultado a la etiqueta correcta y, además, comprueba que quepa en el tipo correspondiente:
 
 ```lua
 local function number_value(op, a, b, n)
@@ -539,7 +539,7 @@ local function number_value(op, a, b, n)
 end
 ```
 
-La división es la excepción. El operador `/` de Lua siempre produce un decimal, incluso en `8 / 2`, que da `4.0` (§3.4.1). En el Mini-REPL se decidió que la división entre enteros dé un entero cuando es exacta y un decimal cuando no lo es. Para saber si es exacta se usa el resto, `%`; si es cero, el cociente se calcula con `//`, la división entera de Lua, que conserva el tipo entero:
+La división es la excepción. El operador `/` de Lua siempre produce un decimal, incluso en `8 / 2`, que da `4.0` (sección 3.4.1). En el Mini-REPL se decidió que la división entre enteros dé un entero cuando es exacta y un decimal cuando no lo es. Para saber si es exacta se usa el resto, `%`; si es cero, el cociente se calcula con `//`, la división entera de Lua, que conserva el tipo entero:
 
 ```lua
 local function divide(a, b)
@@ -557,68 +557,17 @@ local function divide(a, b)
 end
 ```
 
-El cociente se revisa antes de devolverse: si un divisor decimal muy pequeño produjera infinito, `divide` responde `arithmetic_overflow` igual que `number_value`. La comparación `b.value == 0` detecta tanto el entero `0` como el decimal `0.0`, porque para Lua dos números son iguales si representan el mismo valor matemático, sin importar si son enteros o decimales (§3.4.4). La revisión se hace antes de dividir porque el operador `/` de Lua no lanza un error al dividir por cero: `5 / 0` da infinito, que Lua escribe `inf`. Solo la división entera entre enteros, `5 // 0`, produce un error en Lua.
+El cociente se revisa antes de devolverse: si un divisor decimal muy pequeño produjera infinito, `divide` responde `arithmetic_overflow` igual que `number_value`. La comparación `b.value == 0` detecta tanto el entero `0` como el decimal `0.0`, porque para Lua dos números son iguales si representan el mismo valor matemático, sin importar si son enteros o decimales (sección 3.4.4). La revisión se hace antes de dividir porque el operador `/` de Lua no lanza un error al dividir por cero: `5 / 0` da infinito, que Lua escribe `inf`. Solo la división entera entre enteros, `5 // 0`, produce un error en Lua.
 
-La misma regla de igualdad hace que `2 2.0 ==` dé `true`. La igualdad entre un número y un booleano, en cambio, es una decisión del evaluador. Lua respondería `false` sin quejarse, porque `==` con operandos de tipos distintos siempre da falso (§3.4.4). El evaluador la rechaza con un error de tipos, porque comparar un número con un booleano casi siempre indica una equivocación del usuario, y la consigna pide reportar esas operaciones inválidas. Las comparaciones `<` y `>` solo aceptan números, igual que en Lua.
+La misma regla de igualdad hace que `2 2.0 ==` dé `true`. La igualdad entre un número y un booleano, en cambio, es una decisión del evaluador. Lua respondería `false` sin quejarse, porque `==` con operandos de tipos distintos siempre da falso (sección 3.4.4). El evaluador la rechaza con un error de tipos, porque comparar un número con un booleano casi siempre indica una equivocación del usuario, y la consigna pide reportar esas operaciones inválidas. Las comparaciones `<` y `>` solo aceptan números, igual que en Lua.
 
 ### 4.6 Límites de los enteros
 
 Los enteros de Lua tienen 64 bits, así que existe un entero máximo, 9223372036854775807. Hay dos situaciones en que ese límite aparece.
 
-La primera es un número escrito por el usuario que no cabe en ese rango. `tonumber("99999999999999999999")` no falla; devuelve el decimal `1e+20`. Si el evaluador lo aceptara, el usuario escribiría un entero y obtendría un decimal sin enterarse. Por eso `push_number` revisa que, si `tonumber` devolvió un decimal, el texto original tenga un punto; si no lo tiene, el número se rechaza:
+La primera es un número escrito por el usuario que no cabe en ese rango. `tonumber("99999999999999999999")` no falla; devuelve el decimal `1e+20`. `push_number` revisa que, si `tonumber` devolvió un decimal, el texto original tenga un punto; si no lo tiene, rechaza el número con `[invalid_token] el entero '99999999999999999999' está fuera del rango permitido`.
 
-```lua
-function M.push_number(lexeme, stack)
-    local n = tonumber(lexeme)
-    if n == nil then
-        return Result.fail(Errors.new(Errors.Code.INVALID_TOKEN,
-            string.format("'%s' no es un número válido", lexeme), lexeme))
-    end
-    if math.type(n) == "integer" then
-        return push(stack, Value.int(n))
-    end
-    if lexeme:find(".", 1, true) then
-        return push(stack, Value.float(n))
-    end
-    return Result.fail(Errors.new(Errors.Code.INVALID_TOKEN,
-        string.format("el entero '%s' está fuera del rango permitido", lexeme), lexeme))
-end
-```
-
-La respuesta en la consola es `[invalid_token] el entero '99999999999999999999' está fuera del rango permitido`.
-
-La segunda situación es una operación cuyo resultado se pasa del máximo. Lua no la trata como error: según el manual, cuando una operación entre enteros se desborda, el resultado da la vuelta (§3.4.1). Por ejemplo, `9199999999999999999 1000000000000000000 +` daría `-8246744073709551617`. El evaluador no hereda ese comportamiento: prefiere devolver un error controlado antes que mostrar un número matemáticamente incorrecto. La diferencia es una decisión de diseño del Mini-REPL, no del lenguaje anfitrión.
-
-Para la suma basta comparar con las cotas antes de operar:
-
-```lua
-local function checked_add(a, b)
-    if b > 0 and a > MAX_INT - b then return nil end
-    if b < 0 and a < MIN_INT - b then return nil end
-    return a + b
-end
-```
-
-`MAX_INT` y `MIN_INT` son `math.maxinteger` y `math.mininteger` (§6.7). La resta usa la misma idea con los signos invertidos. La multiplicación puede verificarse dividiendo el producto, pero hay que apartar antes los casos de `0` y `-1`, porque `MIN_INT // -1` también desborda en Lua:
-
-```lua
-local function checked_mul(a, b)
-    if a == 0 or b == 0 then return 0 end
-    if a == -1 then
-        if b == MIN_INT then return nil end
-        return -b
-    end
-    if b == -1 then
-        if a == MIN_INT then return nil end
-        return -a
-    end
-    local product = a * b -- puede venir con wrap; solo se usa para verificar
-    if product // a ~= b then return nil end
-    return product
-end
-```
-
-La división entera tiene un único caso especial, `math.mininteger / -1`, que se comprueba en `divide` antes de calcular el cociente. Las comparaciones no pueden desbordar. Cuando una de estas comprobaciones falla, la función auxiliar devuelve `nil` y `number_value` lo convierte en un error con código `arithmetic_overflow`. Como `apply_operator` valida antes de desapilar, los operandos permanecen en la pila.
+La segunda situación es una operación cuyo resultado se pasa del máximo. Lua no la trata como error: cuando una operación entre enteros se desborda, el resultado da la vuelta (sección 3.4.1). El evaluador no hereda ese comportamiento y responde `arithmetic_overflow` antes que mostrar un número incorrecto. Las comprobaciones usan `math.maxinteger` y `math.mininteger` (sección 6.7); la resta, la multiplicación y la división entera cubren sus propios casos. Como `apply_operator` valida antes de desapilar, los operandos permanecen en la pila.
 
 ### 4.7 Comportamiento en ejecución
 
@@ -628,9 +577,9 @@ En la consola, las reglas anteriores se ven así. `7 2 /` imprime `3.5` y `8 2 /
 
 ### 5.1 Funciones en Lua
 
-En Lua las funciones son valores como cualquier otro: se pueden guardar en variables y en tablas, pasar como argumento y devolver como resultado (Ierusalimschy et al., 2020, §3.4.11). El proyecto usa esto en tres lugares. Las funciones de cada módulo son campos de la tabla `M`. La tabla `OPERATORS` guarda en el campo `apply` de cada operador la función que hace su cálculo. Y `REPL.run` recibe como argumentos las funciones con que lee la entrada y escribe la salida.
+En Lua las funciones son valores como cualquier otro: se pueden guardar en variables y en tablas, pasar como argumento y devolver como resultado (Ierusalimschy et al., 2020, sección 3.4.11). El proyecto usa esto en tres lugares. Las funciones de cada módulo son campos de la tabla `M`. La tabla `OPERATORS` guarda en el campo `apply` de cada operador la función que hace su cálculo. Y `REPL.run` recibe como argumentos las funciones con que lee la entrada y escribe la salida.
 
-Los parámetros de una función se comportan como variables locales que se inicializan con los argumentos de la llamada. Si la llamada trae menos argumentos que parámetros, los que faltan valen `nil`; si trae más, los sobrantes se descartan (§3.4.11). `REPL.run` aprovecha esto para tener parámetros opcionales:
+Los parámetros de una función se comportan como variables locales que se inicializan con los argumentos de la llamada. Si la llamada trae menos argumentos que parámetros, los que faltan valen `nil`; si trae más, los sobrantes se descartan (sección 3.4.11). `REPL.run` aprovecha esto para tener parámetros opcionales:
 
 ```lua
 function M.run(input, output, write_prompt)
@@ -644,7 +593,7 @@ function M.run(input, output, write_prompt)
 
 Cuando `main.lua` llama a `REPL.run()` sin argumentos, los tres parámetros valen `nil` y `or` los reemplaza por la lectura del teclado, la escritura en pantalla y una función que escribe el indicador. Las pruebas, en cambio, pasan funciones propias que entregan líneas preparadas de antemano y guardan lo que el REPL imprime, sin usar el teclado ni la pantalla.
 
-Una función de Lua también puede devolver varios resultados a la vez. Si quien la llama los asigna a varias variables, cada una recibe uno; si asigna menos variables, los resultados sobrantes se descartan; si asigna más, las variables que faltan reciben `nil` (§3.4.12). El evaluador usa esto en `local current = Environment.lookup(env, name)`: `lookup` devuelve el valor y el entorno donde lo encontró, pero aquí solo interesa el valor, y el segundo resultado se descarta.
+Una función de Lua también puede devolver varios resultados a la vez. Si quien la llama los asigna a varias variables, cada una recibe uno; si asigna menos variables, los resultados sobrantes se descartan; si asigna más, las variables que faltan reciben `nil` (sección 3.4.12). El evaluador usa esto en `local current = Environment.lookup(env, name)`: `lookup` devuelve el valor y el entorno donde lo encontró, pero aquí solo interesa el valor, y el segundo resultado se descarta.
 
 ### 5.2 La convención (valor, error)
 
@@ -685,7 +634,7 @@ El código sirve para que un programa, como el archivo de pruebas, distinga los 
 
 ### 5.3 Errores lanzados y pcall
 
-Lua tiene también un mecanismo parecido a las excepciones de otros lenguajes. La función `error` interrumpe la ejecución, y el error sube por las llamadas hasta que alguna lo atrapa con `pcall`. Si nadie lo atrapa, el programa termina (Ierusalimschy et al., 2020, §2.3). `pcall` recibe una función y sus argumentos y la ejecuta en "modo protegido". Si todo sale bien, devuelve `true` seguido de los resultados de la función; si ocurre un error, devuelve `false` y el mensaje.
+Lua tiene también un mecanismo parecido a las excepciones de otros lenguajes. La función `error` interrumpe la ejecución, y el error sube por las llamadas hasta que alguna lo atrapa con `pcall`. Si nadie lo atrapa, el programa termina (Ierusalimschy et al., 2020, sección 2.3). `pcall` recibe una función y sus argumentos y la ejecuta en "modo protegido". Si todo sale bien, devuelve `true` seguido de los resultados de la función; si ocurre un error, devuelve `false` y el mensaje.
 
 El proyecto no usa este mecanismo para los errores del usuario. Una división por cero o un nombre mal escrito son parte del uso normal de una calculadora, y tratarlos como valores de retorno deja a la vista, en cada llamada, qué puede fallar y qué se hace en ese caso. `pcall` aparece en un solo lugar, el REPL, como protección contra fallas que no deberían ocurrir:
 
@@ -702,7 +651,7 @@ Si un error de programación hiciera fallar uno de los `assert` de `value.lua`, 
 
 Este es el punto que la consigna pide demostrar pasando explícitamente la pila y el entorno a las subrutinas. Para explicarlo hay que distinguir dos clases de valores en Lua.
 
-Los números, los booleanos, los textos y `nil` se guardan directamente en la variable. Pasarlos a una función entrega una copia, y si la función cambia su parámetro, la variable original no se entera. Con las tablas, en cambio, el manual es explícito: las tablas y las funciones son objetos, y las variables no contienen esos objetos sino solo referencias a ellos; la asignación, el paso de parámetros y la devolución de resultados siempre manipulan referencias y nunca hacen copias (Ierusalimschy et al., 2020, §2.1). Una referencia es la indicación de dónde está la tabla en memoria. Si dos variables tienen la referencia a la misma tabla, ambas ven cualquier cambio que se haga en ella.
+Los números, los booleanos, los textos y `nil` se guardan directamente en la variable. Pasarlos a una función entrega una copia, y si la función cambia su parámetro, la variable original no se entera. Con las tablas, en cambio, el manual es explícito: las tablas y las funciones son objetos, y las variables no contienen esos objetos sino solo referencias a ellos; la asignación, el paso de parámetros y la devolución de resultados siempre manipulan referencias y nunca hacen copias (Ierusalimschy et al., 2020, sección 2.1). Una referencia es la indicación de dónde está la tabla en memoria. Si dos variables tienen la referencia a la misma tabla, ambas ven cualquier cambio que se haga en ella.
 
 Formalmente Lua tiene un solo mecanismo: todos los argumentos se pasan por valor, pero en el caso de una tabla ese valor es la referencia. Scott (2015) llama a este mecanismo paso por compartición, y es el mismo que usan, entre otros, Java para los objetos y Python. De él se siguen dos consecuencias, y el Mini-REPL muestra ambas.
 
@@ -745,13 +694,13 @@ Lua no tiene punteros que el programa pueda manipular, como los de C, ni reglas 
 
 ### 5.5 Manejo de memoria
 
-Lua administra la memoria automáticamente. El programa nunca pide ni libera memoria de forma explícita: cada tabla nueva ocupa memoria al crearse, y un recolector de basura la libera cuando la tabla deja de ser alcanzable, es decir, cuando ninguna variable ni ninguna otra tabla en uso conserva una referencia a ella (Ierusalimschy et al., 2020, §2.5). En Lua 5.4 el recolector trabaja por defecto en pasos pequeños intercalados con la ejecución del programa, y puede cambiarse a un modo que revisa con más frecuencia los objetos recién creados (§2.5.1 y §2.5.2).
+Lua administra la memoria automáticamente. El programa nunca pide ni libera memoria de forma explícita: cada tabla nueva ocupa memoria al crearse, y un recolector de basura la libera cuando la tabla deja de ser alcanzable, es decir, cuando ninguna variable ni ninguna otra tabla en uso conserva una referencia a ella (Ierusalimschy et al., 2020, sección 2.5). En Lua 5.4 el recolector trabaja por defecto en pasos pequeños intercalados con la ejecución del programa, y puede cambiarse a un modo que revisa con más frecuencia los objetos recién creados (secciones 2.5.1 y 2.5.2).
 
 En el Mini-REPL cada línea crea tablas: los tokens, los valores intermedios y los errores. Cuando la línea termina y la pila se vacía en la siguiente, ya nada conserva referencias a esas tablas, y el recolector las libera en algún momento posterior. Borrar los elementos de la pila con `stack[i] = nil` cumple aquí una segunda función: elimina las referencias que mantendrían vivos los valores de la línea anterior.
 
 El caso más interesante es el cierre de un bloque. `close` devuelve el entorno padre, y el REPL deja de guardar la referencia al entorno del bloque. Como el padre no apunta a sus hijos, el entorno del bloque y todas sus variables locales quedan sin referencias y el recolector los libera. Es el equivalente, construido a mano, de lo que pasa con las variables locales de Lua al terminar un bloque `do ... end`.
 
-Las pruebas comprueban esa liberación con una tabla débil. Una tabla débil es una tabla cuyas referencias no cuentan para el recolector: si un objeto solo es referenciado desde una tabla débil, el recolector lo libera igual y lo quita de ella. Se declara con el campo `__mode` en su metatabla; el valor `"v"` indica que los valores de la tabla son referencias débiles (§2.5.4):
+Las pruebas comprueban esa liberación con una tabla débil. Una tabla débil es una tabla cuyas referencias no cuentan para el recolector: si un objeto solo es referenciado desde una tabla débil, el recolector lo libera igual y lo quita de ella. Se declara con el campo `__mode` en su metatabla; el valor `"v"` indica que los valores de la tabla son referencias débiles (sección 2.5.4):
 
 ```lua
 local weak = setmetatable({}, { __mode = "v" })
@@ -769,13 +718,13 @@ check("el entorno del bloque cerrado fue liberado", weak.block == nil)
 check("el entorno global sigue vivo", survivor ~= nil and survivor.depth == 0)
 ```
 
-La función abre un bloque, define una variable en él, guarda una referencia débil al bloque y lo cierra. Después, `collectgarbage("collect")` fuerza un ciclo completo del recolector. Si el entorno del bloque hubiera quedado referenciado en algún lugar, `weak.block` lo seguiría mostrando; la prueba confirma que desapareció, mientras el entorno global, que sí sigue en uso, permanece. El trabajo se hace dentro de una función para que las variables locales `block_env` y `global_env` dejen de existir al salir de ella, y así no retengan al bloque. Los paréntesis en `return (Environment.close(block_env))` conservan solo el primer resultado de `close` (§3.4.12).
+La prueba abre un bloque, guarda una referencia débil a su entorno y lo cierra; `collectgarbage("collect")` fuerza un ciclo del recolector. `weak.block` desaparece y el entorno global, que sigue en uso, permanece. La función existe para que las variables locales dejen de retener el bloque al salir, y los paréntesis en `return (Environment.close(block_env))` conservan solo el primer resultado de `close` (sección 3.4.12).
 
 ## 6. Abstracción de datos y su equivalente a la programación orientada a objetos
 
 ### 6.1 Las tablas como único mecanismo de estructura
 
-Lua no tiene clases, registros ni arreglos como construcciones separadas. Todas se construyen con tablas (Ierusalimschy et al., 2020, §2.1). Sus autores explican que fue una decisión deliberada: un único mecanismo general mantiene el lenguaje pequeño y fácil de implementar, y deja que cada programa construya las estructuras que necesita (Ierusalimschy et al., 2007). En el proyecto, la misma construcción cumple papeles distintos según cómo se use. La pila es una lista, con claves 1, 2, 3 y siguientes. Un token, un valor o un error es un registro, con campos con nombre como `kind` y `value`. `OPERATORS` y `KEYWORDS` son diccionarios, que asocian cada lexema con su información. Y cada módulo es una tabla de funciones.
+Lua no tiene clases, registros ni arreglos como construcciones separadas. Todas se construyen con tablas (Ierusalimschy et al., 2020, sección 2.1). Sus autores explican que fue una decisión deliberada: un único mecanismo general mantiene el lenguaje pequeño y fácil de implementar, y deja que cada programa construya las estructuras que necesita (Ierusalimschy et al., 2007). En el proyecto, la misma construcción cumple papeles distintos según cómo se use. La pila es una lista, con claves 1, 2, 3 y siguientes. Un token, un valor o un error es un registro, con campos con nombre como `kind` y `value`. `OPERATORS` y `KEYWORDS` son diccionarios, que asocian cada lexema con su información. Y cada módulo es una tabla de funciones.
 
 ### 6.2 Módulos y ocultamiento de información
 
@@ -785,9 +734,9 @@ Abstraer un dato significa ofrecer operaciones para usarlo y esconder cómo est�
 
 ### 6.3 Metatablas
 
-Una metatabla es una tabla común que, asociada a otra tabla, cambia cómo se comporta esta última en ciertas operaciones. Los campos de la metatabla con nombres especiales, como `__add`, `__index` o `__tostring`, indican qué hacer cuando se suma la tabla, cuando se consulta un campo que no existe o cuando se la convierte en texto (Ierusalimschy et al., 2020, §2.4). Las metatablas son el mecanismo con que Lua permite construir algo parecido a las clases.
+Una metatabla es una tabla común que, asociada a otra tabla, cambia cómo se comporta esta última en ciertas operaciones. Los campos de la metatabla con nombres especiales, como `__add`, `__index` o `__tostring`, indican qué hacer cuando se suma la tabla, cuando se consulta un campo que no existe o cuando se la convierte en texto (Ierusalimschy et al., 2020, sección 2.4). Las metatablas son el mecanismo con que Lua permite construir algo parecido a las clases.
 
-El proyecto las usa de forma acotada. Todos los valores comparten la metatabla `ValueMeta`, y todos los errores comparten `ErrorMeta`. Ambas definen `__tostring`, que la función `tostring` consulta antes de convertir una tabla en texto (§6.1):
+El proyecto las usa de forma acotada. Todos los valores comparten la metatabla `ValueMeta`, y todos los errores comparten `ErrorMeta`. Ambas definen `__tostring`, que la función `tostring` consulta antes de convertir una tabla en texto (sección 6.1):
 
 ```lua
 ValueMeta.__tostring = M.tostring
@@ -795,15 +744,13 @@ ValueMeta.__tostring = M.tostring
 
 Sin esa línea, `print(Value.float(2.5))` mostraría algo como `table: 0x55d1c8a0`, que es la forma en que Lua escribe cualquier tabla. Con ella muestra `2.5`. Este comportamiento compartido, definido una sola vez para todos los valores, es lo más cercano en el proyecto a un método de clase.
 
-La forma habitual de imitar clases en Lua va más lejos (Ierusalimschy, 2016). Se usa el campo `__index` para que los objetos busquen sus métodos en una tabla común, y se llaman con dos puntos, como `env:get(name)`. Esa escritura es solo una abreviatura de `env.get(env, name)` (§3.4.10). El proyecto no la usa a propósito. La consigna pide que la pila y el entorno se pasen explícitamente a las subrutinas, y la forma con dos puntos esconde justamente ese parámetro. `Environment.get(env, name)` deja a la vista qué entorno recibe la función.
+La forma habitual de imitar clases en Lua va más lejos (Ierusalimschy, 2016). Se usa el campo `__index` para que los objetos busquen sus métodos en una tabla común, y se llaman con dos puntos, como `env:get(name)`. Esa escritura es solo una abreviatura de `env.get(env, name)` (sección 3.4.10). El proyecto no la usa a propósito. La consigna pide que la pila y el entorno se pasen explícitamente a las subrutinas, y la forma con dos puntos esconde justamente ese parámetro. `Environment.get(env, name)` deja a la vista qué entorno recibe la función.
 
 ### 6.4 Polimorfismo e interfaces
 
-En la programación orientada a objetos, el polimorfismo permite tratar de la misma forma a objetos de clases distintas, y una interfaz es el conjunto de operaciones que esas clases se comprometen a ofrecer. Lua no tiene interfaces declaradas. Cualquier tabla que tenga los campos que el código espera sirve, y si le falta alguno, el error aparece en el momento de usarlo. El proyecto aplica esta idea en cuatro lugares.
+En programación orientada a objetos, el polimorfismo permite tratar de la misma forma a objetos de clases distintas, y una interfaz es el conjunto de operaciones que deben ofrecer. Lua no tiene interfaces declaradas: cualquier tabla con los campos que el código espera sirve. El proyecto aplica esta idea en cuatro lugares.
 
-El primero es la unión etiquetada. Un valor de la pila puede ser de cuatro variantes, y el código decide qué hacer leyendo la etiqueta: `resolve` trata distinto a una ficha `name`, y `check_types` pregunta si los operandos son números o booleanos. Es el reemplazo, en un lenguaje sin clases, de tener una clase por variante.
-
-El segundo es la tabla de operadores. Todas sus entradas tienen la misma forma, un campo `accepts` y una función `apply` que recibe dos valores y devuelve `(valor, error)`:
+La unión etiquetada permite recorrer una pila con cuatro variantes sin clases: `resolve` distingue la ficha `name` y `check_types` pregunta si los operandos son números o booleanos. La tabla `OPERATORS` da la forma común a los ocho operadores, con un campo `accepts` y una función `apply`; `apply_operator` la invoca sin saber cuál es, de modo que agregar `<=` solo exige una entrada nueva y su lexema en el tokenizador:
 
 ```lua
 local OPERATORS = {
@@ -818,11 +765,7 @@ local OPERATORS = {
 }
 ```
 
-`apply_operator` llama a `operator.apply(a, b)` sin saber qué operador es. Esa forma común funciona como una interfaz acordada: la división tiene una función con nombre propio, `divide`, porque puede fallar, y las demás son funciones escritas en el mismo lugar, pero desde `apply_operator` todas se usan igual.
-
-El tercero es el contrato `(valor, error)`, que siguen todas las subrutinas de todos los módulos. Ningún mecanismo del lenguaje lo obliga, pero gracias a él cualquier función del proyecto se llama y se revisa de la misma manera.
-
-El cuarto son los parámetros `input`, `output` y `write_prompt` de `REPL.run`. El REPL no sabe si lee del teclado o de una lista preparada; solo necesita una función que, al llamarla, devuelva la siguiente línea o `nil`. Las pruebas aprovechan esto para ejecutar una sesión completa sin intervención humana.
+El contrato `(valor, error)` funciona como una interfaz entre módulos. Los parámetros `input`, `output` y `write_prompt` de `REPL.run` funcionan como otra: el REPL solo necesita funciones que devuelvan la siguiente línea o la escriban, y las pruebas sustituyen el teclado y la pantalla por listas.
 
 ### 6.5 Composición
 
@@ -834,7 +777,7 @@ La orientación a objetos suele reutilizar comportamiento por herencia, haciendo
 
 El archivo `tests/test_evaluator.lua` no usa ninguna biblioteca externa. Se ejecuta con `lua tests/test_evaluator.lua` desde la raíz del proyecto. La función `check` recibe una descripción y una condición; si la condición falla, imprime la descripción junto con lo que se obtuvo. Al final se muestra el total de comprobaciones correctas y fallidas, y el programa termina con código 0 si todo pasó o con código 1 si algo falló, lo que permite usarlo desde otras herramientas.
 
-Las comprobaciones están agrupadas en ocho partes. La primera cubre la aritmética y las comparaciones, incluidos el orden de los operandos, la mezcla de enteros y decimales y la regla de la división. La segunda cubre cada clase de error: división por cero, pila insuficiente, tipos incompatibles, tokens inválidos, enteros fuera de rango, desbordamiento aritmético, variables no definidas, asignaciones mal formadas y `end` sin `begin`. La tercera cubre las variables y las expresiones que las usan. La cuarta cubre los bloques, el ocultamiento, el anidamiento, el límite de profundidad y la diferencia entre `define` y `set`. La quinta cubre el paso de la pila y del entorno, la sexta la liberación de memoria, la séptima las metatablas y la octava una sesión completa del REPL con entrada simulada, cuya salida debe coincidir línea por línea con la esperada. La ejecución correcta termina informando cero comprobaciones fallidas.
+Las comprobaciones se agrupan por tema: aritmética y comparaciones, errores controlados, variables, bloques y anidamiento, paso de parámetros, memoria, metatablas y una sesión completa del REPL con entrada simulada, cuya salida debe coincidir línea por línea con la esperada. La ejecución correcta termina informando cero comprobaciones fallidas.
 
 ### 7.2 Sesión comentada
 
@@ -881,11 +824,9 @@ rpn> end
 rpn> exit
 ```
 
-La primera línea suma dos enteros y el resultado es el entero 7. La segunda apila la ficha de `x`, que todavía no existe, calcula `5 2 +` y asigna el 7 a `x` en el entorno global; la pila queda vacía y no se imprime nada. La tercera lee `x`. La cuarta es la expresión `(x + 5) × 2` de la consigna, que con `x` igual a 7 da 24. La quinta muestra que una división entera no exacta produce un decimal, y la sexta que una comparación produce un booleano.
+La primera parte de la sesión cubre la aritmética, la expresión `(x + 5) × 2` de la consigna, una división no exacta y una comparación. Los cinco resultados de error son casos controlados: tipos incompatibles, división por cero, pila insuficiente, desbordamiento y token inválido; el programa sigue funcionando después de cada uno.
 
-Las cinco líneas siguientes son errores controlados. El primero es un error de tipos, el segundo una división por cero, el tercero una pila insuficiente, el cuarto un desbordamiento aritmético y el quinto un token inválido. Los cuatro primeros corresponden a las clases que exige la consigna; el desbordamiento se agrega porque es un error de ejecución que Lua no reporta por su cuenta. En todos los casos el programa sigue funcionando y la línea siguiente se evalúa con normalidad.
-
-`begin x 99 = x end` abre un bloque, crea en él una `x` local con 99, la lee y cierra el bloque, todo en la misma línea; se imprime 99, el valor que `x` tenía dentro del bloque. La línea siguiente confirma que la `x` global sigue valiendo 7. Luego se abre un bloque que queda activo entre líneas, como indica el cambio del indicador a `rpn[1]> `. Dentro de él se asignan `x` e `y`, y `vars` muestra que ambas pertenecen al bloque 1; la `x` global no aparece porque la del bloque la oculta. Al cerrar el bloque, `vars` muestra solo la `x` global con su valor original, y la variable `y` ya no existe. El último `end` no tiene un bloque que cerrar y se informa como error. `exit` termina la sesión.
+`begin x 99 = x end` crea una `x` local, imprime 99 y al cerrar deja la global en 7. El bloque abierto entre líneas muestra el indicador `rpn[1]> ` y cómo `vars` lista solo las variables visibles; al cerrarlo, `x` recupera su valor global e `y` desaparece. El último `end` se informa como error y `exit` termina la sesión.
 
 ## 8. Bibliografía
 
