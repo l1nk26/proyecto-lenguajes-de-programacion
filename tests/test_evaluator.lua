@@ -56,6 +56,8 @@ expect_value("1.5 2 +", "3.5", "float")
 expect_value("2.0 2 *", "4.0", "float")
 expect_value("-5 3 +", "-2", "int")
 expect_value("3 4 + 2 *", "14", "int")
+expect_value("9223372036854775806 1 +", "9223372036854775807", "int")
+expect_value("-9223372036854775808 1 +", "-9223372036854775807", "int")
 expect_value("1 2 3", "3", "int")
 expect_value("5 5 ==", "true", "bool")
 expect_value("2 2.0 ==", "true", "bool")
@@ -83,6 +85,15 @@ expect_error("5 3 =", Errors.Code.INVALID_ASSIGNMENT)
 expect_error("x =", Errors.Code.STACK_UNDERFLOW)
 expect_error("end", Errors.Code.NO_OPEN_BLOCK)
 expect_error("1 vars", Errors.Code.INVALID_TOKEN)
+-- Desbordamiento: Lua haría wrap, pero el evaluador lo reporta como error.
+expect_error("9223372036854775807 1 +", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("9199999999999999999 1000000000000000000 +", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("-9223372036854775808 -1 +", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("9223372036854775807 -1 -", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("-9223372036854775808 1 -", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("9223372036854775807 2 *", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("-9223372036854775808 -1 *", Errors.Code.ARITHMETIC_OVERFLOW)
+expect_error("-9223372036854775808 -1 /", Errors.Code.ARITHMETIC_OVERFLOW)
 
 local _, tok_err = Tokenizer.tokenize("1 2 $ +")
 check("el error de token indica la columna", tok_err and tok_err.message:find("columna 5") ~= nil,
@@ -135,6 +146,18 @@ expect_value("x", "1", "int", nested)
 nested = select(3, run("end", nested))
 expect_value("x", "7", "int", nested)
 
+-- Límite de profundidad: 1000 bloques permitidos, el 1001 se rechaza.
+local deep = Environment.new(nil)
+for _ = 1, Environment.MAX_DEPTH do
+    deep = Environment.open(deep)
+end
+check("se pueden abrir 1000 bloques anidados", deep.depth == Environment.MAX_DEPTH)
+local _, depth_err = Environment.open(deep)
+check("el bloque 1001 se rechaza con error controlado",
+    depth_err ~= nil and depth_err.code == Errors.Code.MAX_DEPTH_EXCEEDED,
+    depth_err and Errors.format(depth_err))
+expect_error("begin", Errors.Code.MAX_DEPTH_EXCEEDED, deep)
+
 local h = Environment.new(nil)
 run("x 7 =", h)
 local block = Environment.open(h)
@@ -153,6 +176,14 @@ check("push_number modifica la pila del llamador", #stack == 2)
 Evaluator.apply_operator("+", stack)
 check("apply_operator deja un solo valor en la misma pila",
     #stack == 1 and stack[1].value == 7)
+
+local overflow_stack = {}
+Evaluator.push_number("9223372036854775807", overflow_stack)
+Evaluator.push_number("1", overflow_stack)
+local _, overflow_err = Evaluator.apply_operator("+", overflow_stack)
+check("un desbordamiento no desapila los operandos",
+    overflow_err ~= nil and overflow_err.code == Errors.Code.ARITHMETIC_OVERFLOW
+        and #overflow_stack == 2)
 REPL.clear(stack)
 check("clear vacía la misma tabla", #stack == 0)
 
@@ -192,6 +223,7 @@ local session = {
     "5 true +",
     "5 0 /",
     "5 +",
+    "9199999999999999999 1000000000000000000 +",
     "3 #",
     "begin x 99 = x end",
     "x",
@@ -214,6 +246,7 @@ local expected = {
     "[type_mismatch] el operador + no se puede aplicar a int y bool",
     "[division_by_zero] división por cero",
     "[stack_underflow] el operador + necesita 2 valores y la pila tiene 1",
+    "[arithmetic_overflow] el resultado de + excede el rango de enteros",
     "[invalid_token] token inválido '#' en la columna 3",
     "99",
     "7",
@@ -239,7 +272,7 @@ for k = 1, math.max(#printed, #expected) do
     check("sesión, salida " .. k, printed[k] == expected[k],
         tostring(printed[k]) .. "  vs  " .. tostring(expected[k]))
 end
-check("el prompt indica el bloque abierto", prompts[14] == "rpn[1]> ", tostring(prompts[14]))
+check("el prompt indica el bloque abierto", prompts[15] == "rpn[1]> ", tostring(prompts[15]))
 
 print(string.format("%d pruebas correctas, %d fallidas", passed, failed))
 os.exit(failed == 0 and 0 or 1)

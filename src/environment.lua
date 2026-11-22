@@ -11,6 +11,10 @@ local Errors = require("errors")
 
 local M = {}
 
+-- Profundidad máxima de bloques anidados. El entorno global está en 0,
+-- así que se pueden abrir 1000 bloques y el intento 1001 se rechaza.
+M.MAX_DEPTH = 1000
+
 -- depth: 0 para el entorno global, 1 para el primer bloque, etc.
 function M.new(parent)
     return {
@@ -71,6 +75,12 @@ function M.set(env, name, value)
 end
 
 function M.open(current)
+    if current.depth >= M.MAX_DEPTH then
+        return Result.fail(Errors.new(
+            Errors.Code.MAX_DEPTH_EXCEEDED,
+            string.format("se alcanzó el límite de %d bloques anidados", M.MAX_DEPTH),
+            "begin"))
+    end
     return Result.ok(M.new(current))
 end
 

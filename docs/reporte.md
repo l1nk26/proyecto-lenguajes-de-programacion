@@ -90,8 +90,11 @@ end
 ```
 
 ```lua
-    local right_item = table.remove(stack)
-    local left_item = table.remove(stack)
+    local right_item = stack[#stack]
+    local left_item = stack[#stack - 1]
+    -- ... validaciones ...
+    table.remove(stack)
+    table.remove(stack)
 ```
 
 ### 2.3 Recorrido de una línea por el programa
@@ -172,7 +175,7 @@ Si una palabra no pertenece a ninguna clase, el tokenizador se detiene y devuelv
 
 ### 2.5 Aplicación de operadores
 
-`apply_operator` concentra el trabajo de los ocho operadores. Lo hace en cinco pasos: busca el operador en la tabla, comprueba que haya al menos dos valores, desapila los operandos, verifica sus tipos y calcula el resultado:
+`apply_operator` concentra el trabajo de los ocho operadores. Lo hace en cinco pasos: busca el operador en la tabla, comprueba que haya al menos dos valores, **lee** los operandos sin quitarlos, verifica sus tipos y su rango y, solo si todo es válido, los desapila y apila el resultado:
 
 ```lua
 function M.apply_operator(op, stack)
@@ -185,9 +188,10 @@ function M.apply_operator(op, stack)
         return underflow("el operador " .. op, 2, #stack)
     end
 
-    -- En postfijo el operando derecho es el último que se apiló.
-    local right_item = table.remove(stack)
-    local left_item = table.remove(stack)
+    -- En postfijo el operando derecho es el último que se apiló. Solo se
+    -- desapilan después de validar: un error deja la pila como estaba.
+    local right_item = stack[#stack]
+    local left_item = stack[#stack - 1]
 
     local a, err_a = M.resolve(left_item)
     if err_a then return nil, err_a end
@@ -199,11 +203,14 @@ function M.apply_operator(op, stack)
 
     local result, op_err = operator.apply(a, b)
     if op_err then return nil, op_err end
+
+    table.remove(stack)
+    table.remove(stack)
     return push(stack, result)
 end
 ```
 
-El orden de los operandos importa en la resta, la división y las comparaciones. En `2 5 -` el 2 entra primero y el 5 queda en el tope, así que el primer `table.remove` devuelve el 5, que es el operando derecho. El cálculo es 2 menos 5 y la respuesta es `-3`.
+El orden de los operandos importa en la resta, la división y las comparaciones. En `2 5 -` el 2 entra primero y el 5 queda en el tope, así que `stack[#stack]` es el 5, el operando derecho. El cálculo es 2 menos 5 y la respuesta es `-3`. Validar antes de desapilar tiene una consecuencia útil: si una operación falla, los operandos siguen en la pila y el estado no queda a medias.
 
 La comprobación de profundidad evita el error que en inglés se llama *stack underflow*: intentar sacar de la pila más valores de los que tiene. Con `5 +` hay un solo valor y el operador necesita dos, por lo que la respuesta es `[stack_underflow] el operador + necesita 2 valores y la pila tiene 1`. Con `*` solo, la pila tiene cero.
 
@@ -368,6 +375,22 @@ end
 
 En ejecución se observa lo siguiente. Con `x` global valiendo 7, la línea `begin x 99 = x end` imprime `99`; la línea siguiente, `x`, imprime `7`. Si se abre un bloque con `begin`, se escribe `z 3 =` y luego `end`, la variable `z` deja de existir: `z` responde `[undefined_variable] la variable 'z' no está definida`. El comando `vars` muestra para cada variable visible su valor, su tipo y el entorno donde vive, por ejemplo `x = 1 (int, bloque 1)`; un nombre que existe en el bloque y en el global aparece una sola vez, con el valor del bloque, porque esa es la variable que se usaría. Si una línea falla después de un `begin`, como `begin 5 0 /`, el bloque abierto antes del error sigue abierto, y el indicador `rpn[1]> ` lo hace visible.
 
+`Environment.MAX_DEPTH` fija en 1000 la cantidad máxima de bloques anidados. `open` compara la profundidad del entorno actual antes de crear el hijo, y con 1000 bloques abiertos devuelve un error en lugar de seguir agregando tablas:
+
+```lua
+function M.open(current)
+    if current.depth >= M.MAX_DEPTH then
+        return Result.fail(Errors.new(
+            Errors.Code.MAX_DEPTH_EXCEEDED,
+            string.format("se alcanzó el límite de %d bloques anidados", M.MAX_DEPTH),
+            "begin"))
+    end
+    return Result.ok(M.new(current))
+end
+```
+
+La respuesta es `[max_depth_exceeded] se alcanzó el límite de 1000 bloques anidados`. Sin este control, cada `begin` crearía una tabla nueva y la cadena de padres crecería hasta agotar la memoria; en ese caso Lua lanzaría un error de memoria que el REPL mostraría como `internal_error`, que es un fallo imprevisto y no un error del usuario. El límite también evita que `lookup` y `vars`, que recorren la cadena, tengan que subir por un número arbitrario de niveles.
+
 ## 4. Sistema de tipos y chequeo de tipos
 
 ### 4.1 Tipos en Lua y momento del chequeo
@@ -497,14 +520,22 @@ Las reglas resultantes son las siguientes.
 | `<` `>` | dos números | Bool |
 | `==` `!=` | dos números o dos booleanos | Bool |
 
-Las tres primeras filas siguen lo que hace Lua con sus propios números. Cuando los dos operandos son enteros, Lua suma, resta y multiplica como enteros; si alguno es decimal, convierte ambos a decimal (Ierusalimschy et al., 2020, §3.4.1). La función `number_result` traslada ese resultado a la etiqueta correcta:
+Las tres primeras filas siguen lo que hace Lua con sus propios números. Cuando los dos operandos son enteros, Lua suma, resta y multiplica como enteros; si alguno es decimal, convierte ambos a decimal (Ierusalimschy et al., 2020, §3.4.1). La función `number_value` traslada ese resultado a la etiqueta correcta y, además, comprueba que quepa en el tipo correspondiente:
 
 ```lua
-local function number_result(a, b, n)
-    if a.kind == Value.Kind.INT and b.kind == Value.Kind.INT then
-        return Value.int(n)
+local function number_value(op, a, b, n)
+    if int_pair(a, b) then
+        if n == nil then
+            return arithmetic_overflow(op,
+                string.format("el resultado de %s excede el rango de enteros", op))
+        end
+        return Result.ok(Value.int(n))
     end
-    return Value.float(n)
+    if n ~= n or n == math.huge or n == -math.huge then
+        return arithmetic_overflow(op,
+            string.format("el resultado de %s excede el rango de flotantes", op))
+    end
+    return Result.ok(Value.float(n))
 end
 ```
 
@@ -518,11 +549,15 @@ local function divide(a, b)
     if a.kind == Value.Kind.INT and b.kind == Value.Kind.INT and a.value % b.value == 0 then
         return Result.ok(Value.int(a.value // b.value))
     end
-    return Result.ok(Value.float(a.value / b.value))
+    local quotient = a.value / b.value
+    if quotient ~= quotient or quotient == math.huge or quotient == -math.huge then
+        return arithmetic_overflow("/", "el resultado de / excede el rango de flotantes")
+    end
+    return Result.ok(Value.float(quotient))
 end
 ```
 
-La comparación `b.value == 0` detecta tanto el entero `0` como el decimal `0.0`, porque para Lua dos números son iguales si representan el mismo valor matemático, sin importar si son enteros o decimales (§3.4.4). La revisión se hace antes de dividir porque el operador `/` de Lua no lanza un error al dividir por cero: `5 / 0` da infinito, que Lua escribe `inf`. Solo la división entera entre enteros, `5 // 0`, produce un error en Lua.
+El cociente se revisa antes de devolverse: si un divisor decimal muy pequeño produjera infinito, `divide` responde `arithmetic_overflow` igual que `number_value`. La comparación `b.value == 0` detecta tanto el entero `0` como el decimal `0.0`, porque para Lua dos números son iguales si representan el mismo valor matemático, sin importar si son enteros o decimales (§3.4.4). La revisión se hace antes de dividir porque el operador `/` de Lua no lanza un error al dividir por cero: `5 / 0` da infinito, que Lua escribe `inf`. Solo la división entera entre enteros, `5 // 0`, produce un error en Lua.
 
 La misma regla de igualdad hace que `2 2.0 ==` dé `true`. La igualdad entre un número y un booleano, en cambio, es una decisión del evaluador. Lua respondería `false` sin quejarse, porque `==` con operandos de tipos distintos siempre da falso (§3.4.4). El evaluador la rechaza con un error de tipos, porque comparar un número con un booleano casi siempre indica una equivocación del usuario, y la consigna pide reportar esas operaciones inválidas. Las comparaciones `<` y `>` solo aceptan números, igual que en Lua.
 
@@ -552,11 +587,42 @@ end
 
 La respuesta en la consola es `[invalid_token] el entero '99999999999999999999' está fuera del rango permitido`.
 
-La segunda situación es una operación cuyo resultado se pasa del máximo. Lua no la trata como error: según el manual, cuando una operación entre enteros se desborda, el resultado da la vuelta (§3.4.1). El evaluador hereda ese comportamiento sin modificarlo, de modo que `9223372036854775807 1 +` imprime `-9223372036854775808`. Detectar el desbordamiento exigiría revisar cada suma, resta y multiplicación antes de hacerla, y se optó por dejar visible el comportamiento real del lenguaje anfitrión.
+La segunda situación es una operación cuyo resultado se pasa del máximo. Lua no la trata como error: según el manual, cuando una operación entre enteros se desborda, el resultado da la vuelta (§3.4.1). Por ejemplo, `9199999999999999999 1000000000000000000 +` daría `-8246744073709551617`. El evaluador no hereda ese comportamiento: prefiere devolver un error controlado antes que mostrar un número matemáticamente incorrecto. La diferencia es una decisión de diseño del Mini-REPL, no del lenguaje anfitrión.
+
+Para la suma basta comparar con las cotas antes de operar:
+
+```lua
+local function checked_add(a, b)
+    if b > 0 and a > MAX_INT - b then return nil end
+    if b < 0 and a < MIN_INT - b then return nil end
+    return a + b
+end
+```
+
+`MAX_INT` y `MIN_INT` son `math.maxinteger` y `math.mininteger` (§6.7). La resta usa la misma idea con los signos invertidos. La multiplicación puede verificarse dividiendo el producto, pero hay que apartar antes los casos de `0` y `-1`, porque `MIN_INT // -1` también desborda en Lua:
+
+```lua
+local function checked_mul(a, b)
+    if a == 0 or b == 0 then return 0 end
+    if a == -1 then
+        if b == MIN_INT then return nil end
+        return -b
+    end
+    if b == -1 then
+        if a == MIN_INT then return nil end
+        return -a
+    end
+    local product = a * b -- puede venir con wrap; solo se usa para verificar
+    if product // a ~= b then return nil end
+    return product
+end
+```
+
+La división entera tiene un único caso especial, `math.mininteger / -1`, que se comprueba en `divide` antes de calcular el cociente. Las comparaciones no pueden desbordar. Cuando una de estas comprobaciones falla, la función auxiliar devuelve `nil` y `number_value` lo convierte en un error con código `arithmetic_overflow`. Como `apply_operator` valida antes de desapilar, los operandos permanecen en la pila.
 
 ### 4.7 Comportamiento en ejecución
 
-En la consola, las reglas anteriores se ven así. `7 2 /` imprime `3.5` y `8 2 /` imprime `4`. `1.5 2 +` imprime `3.5`, y `2.0 2 *` imprime `4.0`: el `.0` indica que el resultado es decimal, porque `Value.tostring` usa el formato de Lua, que siempre escribe la parte decimal de un número decimal. `3 4 <` imprime `true` y `true false ==` imprime `false`. `5 true +` responde `[type_mismatch] el operador + no se puede aplicar a int y bool`, y `true 1 <` responde `[type_mismatch] el operador < no se puede aplicar a bool y int`. `5 0 /` y `5 0.0 /` responden `[division_by_zero] división por cero`.
+En la consola, las reglas anteriores se ven así. `7 2 /` imprime `3.5` y `8 2 /` imprime `4`. `1.5 2 +` imprime `3.5`, y `2.0 2 *` imprime `4.0`: el `.0` indica que el resultado es decimal, porque `Value.tostring` usa el formato de Lua, que siempre escribe la parte decimal de un número decimal. `3 4 <` imprime `true` y `true false ==` imprime `false`. `5 true +` responde `[type_mismatch] el operador + no se puede aplicar a int y bool`, y `true 1 <` responde `[type_mismatch] el operador < no se puede aplicar a bool y int`. `5 0 /` y `5 0.0 /` responden `[division_by_zero] división por cero`. Una suma que se pasa del límite, como `9199999999999999999 1000000000000000000 +`, responde `[arithmetic_overflow] el resultado de + excede el rango de enteros`.
 
 ## 5. Subrutinas, paso de parámetros y manejo de memoria
 
@@ -715,7 +781,7 @@ Lua no tiene clases, registros ni arreglos como construcciones separadas. Todas 
 
 Abstraer un dato significa ofrecer operaciones para usarlo y esconder cómo está construido por dentro, de modo que el resto del programa dependa de las operaciones y no de la construcción (Sebesta, 2019). En Lua esto se logra con módulos y variables locales. Todo lo que un archivo declara como `local` es invisible desde fuera, porque el alcance léxico de la sección 3.4 lo limita al propio archivo. Solo lo que se guarda en la tabla `M` devuelta queda disponible para los demás.
 
-`environment.lua` es el ejemplo más completo. Desde fuera, un entorno se maneja con `new`, `lookup`, `get`, `define`, `set`, `open`, `close`, `names` y `scope_label`. Ni el evaluador ni el REPL escriben en los campos `vars` o `parent`; el REPL solo lee `depth` para armar el indicador. Si mañana los entornos se guardaran de otra forma, por ejemplo como una lista de tablas en lugar de una cadena de padres, solo habría que cambiar ese archivo. Del mismo modo, `evaluator.lua` esconde `check_types`, `divide`, `number_result`, `underflow` y `run_keyword`, que son detalles de cómo evalúa, y ofrece `eval` y las operaciones sobre la pila.
+`environment.lua` es el ejemplo más completo. Desde fuera, un entorno se maneja con `new`, `lookup`, `get`, `define`, `set`, `open`, `close`, `names` y `scope_label`. Ni el evaluador ni el REPL escriben en los campos `vars` o `parent`; el REPL solo lee `depth` para armar el indicador. Si mañana los entornos se guardaran de otra forma, por ejemplo como una lista de tablas en lugar de una cadena de padres, solo habría que cambiar ese archivo. Del mismo modo, `evaluator.lua` esconde `check_types`, `divide`, `number_value`, `checked_add`, `checked_sub`, `checked_mul`, `underflow` y `run_keyword`, que son detalles de cómo evalúa, y ofrece `eval` y las operaciones sobre la pila.
 
 ### 6.3 Metatablas
 
@@ -741,9 +807,9 @@ El segundo es la tabla de operadores. Todas sus entradas tienen la misma forma, 
 
 ```lua
 local OPERATORS = {
-    ["+"]  = { accepts = "numbers", apply = function(a, b) return Result.ok(number_result(a, b, a.value + b.value)) end },
-    ["-"]  = { accepts = "numbers", apply = function(a, b) return Result.ok(number_result(a, b, a.value - b.value)) end },
-    ["*"]  = { accepts = "numbers", apply = function(a, b) return Result.ok(number_result(a, b, a.value * b.value)) end },
+    ["+"]  = { accepts = "numbers", apply = function(a, b) return number_value("+", a, b, add_values(a, b)) end },
+    ["-"]  = { accepts = "numbers", apply = function(a, b) return number_value("-", a, b, sub_values(a, b)) end },
+    ["*"]  = { accepts = "numbers", apply = function(a, b) return number_value("*", a, b, mul_values(a, b)) end },
     ["/"]  = { accepts = "numbers", apply = divide },
     ["=="] = { accepts = "comparable", apply = function(a, b) return Result.ok(Value.bool(a.value == b.value)) end },
     ["!="] = { accepts = "comparable", apply = function(a, b) return Result.ok(Value.bool(a.value ~= b.value)) end },
@@ -766,9 +832,9 @@ La orientación a objetos suele reutilizar comportamiento por herencia, haciendo
 
 ### 7.1 Pruebas automáticas
 
-El archivo `tests/test_evaluator.lua` contiene 86 comprobaciones y no usa ninguna biblioteca externa. Se ejecuta con `lua tests/test_evaluator.lua` desde la raíz del proyecto. La función `check` recibe una descripción y una condición; si la condición falla, imprime la descripción junto con lo que se obtuvo. Al final se muestra el total, y el programa termina con código 0 si todo pasó o con código 1 si algo falló, lo que permite usarlo desde otras herramientas.
+El archivo `tests/test_evaluator.lua` no usa ninguna biblioteca externa. Se ejecuta con `lua tests/test_evaluator.lua` desde la raíz del proyecto. La función `check` recibe una descripción y una condición; si la condición falla, imprime la descripción junto con lo que se obtuvo. Al final se muestra el total de comprobaciones correctas y fallidas, y el programa termina con código 0 si todo pasó o con código 1 si algo falló, lo que permite usarlo desde otras herramientas.
 
-Las comprobaciones están agrupadas en ocho partes. La primera cubre la aritmética y las comparaciones, incluidos el orden de los operandos, la mezcla de enteros y decimales y la regla de la división. La segunda cubre cada clase de error: división por cero, pila insuficiente, tipos incompatibles, tokens inválidos, enteros fuera de rango, variables no definidas, asignaciones mal formadas y `end` sin `begin`. La tercera cubre las variables y las expresiones que las usan. La cuarta cubre los bloques, el ocultamiento, el anidamiento y la diferencia entre `define` y `set`. La quinta cubre el paso de la pila y del entorno, la sexta la liberación de memoria, la séptima las metatablas y la octava una sesión completa del REPL con entrada simulada, cuya salida debe coincidir línea por línea con la esperada. La ejecución actual informa `86 pruebas correctas, 0 fallidas`.
+Las comprobaciones están agrupadas en ocho partes. La primera cubre la aritmética y las comparaciones, incluidos el orden de los operandos, la mezcla de enteros y decimales y la regla de la división. La segunda cubre cada clase de error: división por cero, pila insuficiente, tipos incompatibles, tokens inválidos, enteros fuera de rango, desbordamiento aritmético, variables no definidas, asignaciones mal formadas y `end` sin `begin`. La tercera cubre las variables y las expresiones que las usan. La cuarta cubre los bloques, el ocultamiento, el anidamiento, el límite de profundidad y la diferencia entre `define` y `set`. La quinta cubre el paso de la pila y del entorno, la sexta la liberación de memoria, la séptima las metatablas y la octava una sesión completa del REPL con entrada simulada, cuya salida debe coincidir línea por línea con la esperada. La ejecución correcta termina informando cero comprobaciones fallidas.
 
 ### 7.2 Sesión comentada
 
@@ -793,6 +859,8 @@ rpn> 5 0 /
 [division_by_zero] división por cero
 rpn> 5 +
 [stack_underflow] el operador + necesita 2 valores y la pila tiene 1
+rpn> 9199999999999999999 1000000000000000000 +
+[arithmetic_overflow] el resultado de + excede el rango de enteros
 rpn> 3 #
 [invalid_token] token inválido '#' en la columna 3
 rpn> begin x 99 = x end
@@ -815,7 +883,7 @@ rpn> exit
 
 La primera línea suma dos enteros y el resultado es el entero 7. La segunda apila la ficha de `x`, que todavía no existe, calcula `5 2 +` y asigna el 7 a `x` en el entorno global; la pila queda vacía y no se imprime nada. La tercera lee `x`. La cuarta es la expresión `(x + 5) × 2` de la consigna, que con `x` igual a 7 da 24. La quinta muestra que una división entera no exacta produce un decimal, y la sexta que una comparación produce un booleano.
 
-Las cuatro líneas siguientes son errores controlados, uno de cada clase que exige la consigna. El primero es un error de tipos, el segundo una división por cero, el tercero una pila insuficiente y el cuarto un token inválido. En los cuatro casos el programa sigue funcionando y la línea siguiente se evalúa con normalidad.
+Las cinco líneas siguientes son errores controlados. El primero es un error de tipos, el segundo una división por cero, el tercero una pila insuficiente, el cuarto un desbordamiento aritmético y el quinto un token inválido. Los cuatro primeros corresponden a las clases que exige la consigna; el desbordamiento se agrega porque es un error de ejecución que Lua no reporta por su cuenta. En todos los casos el programa sigue funcionando y la línea siguiente se evalúa con normalidad.
 
 `begin x 99 = x end` abre un bloque, crea en él una `x` local con 99, la lee y cierra el bloque, todo en la misma línea; se imprime 99, el valor que `x` tenía dentro del bloque. La línea siguiente confirma que la `x` global sigue valiendo 7. Luego se abre un bloque que queda activo entre líneas, como indica el cambio del indicador a `rpn[1]> `. Dentro de él se asignan `x` e `y`, y `vars` muestra que ambas pertenecen al bloque 1; la `x` global no aparece porque la del bloque la oculta. Al cerrar el bloque, `vars` muestra solo la `x` global con su valor original, y la variable `y` ya no existe. El último `end` no tiene un bloque que cerrar y se informa como error. `exit` termina la sesión.
 

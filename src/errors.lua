@@ -5,14 +5,16 @@
 local M = {}
 
 M.Code = {
-    STACK_UNDERFLOW    = "stack_underflow",
-    DIVISION_BY_ZERO   = "division_by_zero",
-    TYPE_MISMATCH      = "type_mismatch",
-    INVALID_TOKEN      = "invalid_token",
-    UNDEFINED_VARIABLE = "undefined_variable",
-    INVALID_ASSIGNMENT = "invalid_assignment",
-    NO_OPEN_BLOCK      = "no_open_block",
-    INTERNAL_ERROR     = "internal_error",
+    STACK_UNDERFLOW     = "stack_underflow",
+    DIVISION_BY_ZERO    = "division_by_zero",
+    ARITHMETIC_OVERFLOW = "arithmetic_overflow",
+    TYPE_MISMATCH       = "type_mismatch",
+    INVALID_TOKEN       = "invalid_token",
+    UNDEFINED_VARIABLE  = "undefined_variable",
+    INVALID_ASSIGNMENT  = "invalid_assignment",
+    NO_OPEN_BLOCK       = "no_open_block",
+    MAX_DEPTH_EXCEEDED  = "max_depth_exceeded",
+    INTERNAL_ERROR      = "internal_error",
 }
 
 local ErrorMeta = {}

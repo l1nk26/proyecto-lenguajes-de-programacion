@@ -55,7 +55,8 @@ Para ejecutar las pruebas:
 lua tests/test_evaluator.lua
 ```
 
-La salida esperada es `86 pruebas correctas, 0 fallidas`.
+Al terminar se informa el total de comprobaciones correctas y fallidas (debe
+terminar con `0 fallidas`).
 
 ## Uso
 
@@ -65,7 +66,7 @@ La salida esperada es `86 pruebas correctas, 0 fallidas`.
 | `5 3 <` | comparación; también `>`, `==`, `!=` (resultado `true` o `false`) |
 | `x 10 =` | asigna 10 a `x` en el ámbito actual |
 | `x 5 2 + =` | asigna el resultado de la expresión a `x` |
-| `begin` / `end` | abre o cierra un bloque local (pueden ir en la misma línea o en líneas distintas) |
+| `begin` / `end` | abre o cierra un bloque local (máximo **1000** bloques anidados) |
 | `vars` | lista las variables visibles, su tipo y su ámbito |
 | `exit` o `quit` | termina la sesión |
 
@@ -95,6 +96,8 @@ rpn> 5 0 /
 [division_by_zero] división por cero
 rpn> 5 +
 [stack_underflow] el operador + necesita 2 valores y la pila tiene 1
+rpn> 9199999999999999999 1000000000000000000 +
+[arithmetic_overflow] el resultado de + excede el rango de enteros
 rpn> 3 #
 [invalid_token] token inválido '#' en la columna 3
 rpn> begin x 99 = x end
@@ -123,11 +126,18 @@ Esta misma sesión se verifica automáticamente en `tests/test_evaluator.lua`.
   tipos en tiempo de ejecución usando una *tagged union* en `value.lua`.
 - **Errores:** se usa el mecanismo idiomático de Lua de múltiples retornos
   `(valor, error)` para los errores esperados; `pcall` en `repl.lua` solo
-  protege contra fallos no previstos.
+  protege contra fallos no previstos. Se agregó `arithmetic_overflow`: Lua
+  hace *wrap* de los enteros al desbordar, pero el evaluador comprueba los
+  límites antes de operar y rechaza el resultado en vez de devolver un número
+  incorrecto.
 - **Paso de parámetros:** la pila y el entorno se pasan explícitamente; las
   tablas de Lua se comportan como referencias, lo que permite mutarlas desde
   las subrutinas. Como `begin` y `end` cambian cuál es el entorno activo,
   `Evaluator.eval` lo devuelve como tercer resultado.
 - **Alcance:** `environment.lua` encadena entornos mediante `parent` para
   implementar `begin` / `end` y *shadowing*. La asignación siempre escribe en
-  el ámbito actual, por lo que no modifica las variables globales.
+  el ámbito actual, por lo que no modifica las variables globales. El número
+  de bloques anidados está limitado a 1000 (`Environment.MAX_DEPTH`); abrir
+  el bloque 1001 responde
+  `[max_depth_exceeded] se alcanzó el límite de 1000 bloques anidados` en vez
+  de seguir consumiendo memoria.

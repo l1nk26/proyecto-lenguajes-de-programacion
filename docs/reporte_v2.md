@@ -56,7 +56,7 @@ Lua no tiene un paso de compilación separado. El intérprete carga cada archivo
 lua src/main.lua
 ```
 
-Todas las pruebas de este reporte se hicieron con el intérprete Lua 5.4.6 en Windows 11. El archivo de pruebas se ejecuta con `lua tests/test_evaluator.lua` y en nuestra última corrida imprimió `86 pruebas correctas, 0 fallidas`.
+Todas las pruebas de este reporte se hicieron con el intérprete Lua 5.4.6 en Windows 11. El archivo de pruebas se ejecuta con `lua tests/test_evaluator.lua` y al terminar informa el total de comprobaciones correctas y fallidas (debe ser cero fallidas).
 
 ## 2. Nombres, vinculación, estructuras de control y alcance
 
@@ -307,6 +307,12 @@ end
 
 ```lua
 function M.open(current)
+    if current.depth >= M.MAX_DEPTH then
+        return Result.fail(Errors.new(
+            Errors.Code.MAX_DEPTH_EXCEEDED,
+            string.format("se alcanzó el límite de %d bloques anidados", M.MAX_DEPTH),
+            "begin"))
+    end
     return Result.ok(M.new(current))
 end
 
@@ -322,6 +328,8 @@ function M.close(current)
     return Result.ok(current.parent)
 end
 ```
+
+Pusimos un tope de 1000 bloques anidados en `Environment.MAX_DEPTH`. Sin él, cada `begin` agregaría una tabla a la cadena de padres y el programa seguiría hasta agotar la memoria; ahí Lua lanzaría un error de memoria que el `pcall` del REPL mostraría como `internal_error`, un error imprevisto y no uno del usuario. Con el límite, el bloque 1001 responde `[max_depth_exceeded] se alcanzó el límite de 1000 bloques anidados`. También evita que `lookup` y `vars`, que recorren la cadena, deban subir por un número arbitrario de niveles.
 
 (`src/environment.lua`, líneas 73 a 87.) Para buscar una variable se empieza por el entorno actual y se sube por la cadena de padres hasta encontrarla o llegar al final:
 
@@ -498,9 +506,9 @@ Cada operador está descrito en una tabla con dos campos: `accepts`, que dice qu
 
 ```lua
 local OPERATORS = {
-    ["+"]  = { accepts = "numbers", apply = function(a, b) return Result.ok(number_result(a, b, a.value + b.value)) end },
-    ["-"]  = { accepts = "numbers", apply = function(a, b) return Result.ok(number_result(a, b, a.value - b.value)) end },
-    ["*"]  = { accepts = "numbers", apply = function(a, b) return Result.ok(number_result(a, b, a.value * b.value)) end },
+    ["+"]  = { accepts = "numbers", apply = function(a, b) return number_value("+", a, b, add_values(a, b)) end },
+    ["-"]  = { accepts = "numbers", apply = function(a, b) return number_value("-", a, b, sub_values(a, b)) end },
+    ["*"]  = { accepts = "numbers", apply = function(a, b) return number_value("*", a, b, mul_values(a, b)) end },
     ["/"]  = { accepts = "numbers", apply = divide },
     ["=="] = { accepts = "comparable", apply = function(a, b) return Result.ok(Value.bool(a.value == b.value)) end },
     ["!="] = { accepts = "comparable", apply = function(a, b) return Result.ok(Value.bool(a.value ~= b.value)) end },
@@ -555,9 +563,10 @@ function M.apply_operator(op, stack)
         return underflow("el operador " .. op, 2, #stack)
     end
 
-    -- En postfijo el operando derecho es el último que se apiló.
-    local right_item = table.remove(stack)
-    local left_item = table.remove(stack)
+    -- En postfijo el operando derecho es el último que se apiló. Solo se
+    -- desapilan después de validar: un error deja la pila como estaba.
+    local right_item = stack[#stack]
+    local left_item = stack[#stack - 1]
 
     local a, err_a = M.resolve(left_item)
     if err_a then return nil, err_a end
@@ -569,6 +578,9 @@ function M.apply_operator(op, stack)
 
     local result, op_err = operator.apply(a, b)
     if op_err then return nil, op_err end
+
+    table.remove(stack)
+    table.remove(stack)
     return push(stack, result)
 end
 ```
@@ -592,18 +604,26 @@ false
 
 ### 3.5 Enteros y decimales
 
-La regla del tipo del resultado para `+`, `-` y `*` vive en una función de cinco líneas:
+La regla del tipo del resultado para `+`, `-` y `*` vive en `number_value`, que además verifica el rango:
 
 ```lua
-local function number_result(a, b, n)
-    if a.kind == Value.Kind.INT and b.kind == Value.Kind.INT then
-        return Value.int(n)
+local function number_value(op, a, b, n)
+    if int_pair(a, b) then
+        if n == nil then
+            return arithmetic_overflow(op,
+                string.format("el resultado de %s excede el rango de enteros", op))
+        end
+        return Result.ok(Value.int(n))
     end
-    return Value.float(n)
+    if n ~= n or n == math.huge or n == -math.huge then
+        return arithmetic_overflow(op,
+            string.format("el resultado de %s excede el rango de flotantes", op))
+    end
+    return Result.ok(Value.float(n))
 end
 ```
 
-(`src/evaluator.lua`, líneas 42 a 47.) Lua ya calcula `n` con el subtipo correcto, porque opera dos enteros como entero y cualquier mezcla como decimal (Ierusalimschy et al., 2020, §3.4.1). La función solo traslada esa regla a nuestras etiquetas.
+Lua calcula `n` con el subtipo correcto, porque opera dos enteros como entero y cualquier mezcla como decimal (Ierusalimschy et al., 2020, §3.4.1). La función traslada esa regla a nuestras etiquetas y convierte un resultado fuera de rango en el error `arithmetic_overflow`.
 
 La división necesitó más cuidado. En Lua `/` siempre da decimal, y no queríamos que `8 2 /` mostrara `4.0`. Por eso, si los dos operandos son enteros y el resto es cero, usamos la división entera `//`:
 
@@ -644,14 +664,24 @@ function M.push_number(lexeme, stack)
 end
 ```
 
-(`src/evaluator.lua`, líneas 92 a 108.) Al probar los límites encontramos un caso que no cubrimos. El literal se controla, pero el resultado de una operación no. El manual establece que, cuando una operación entre enteros se desborda, el resultado da la vuelta según la aritmética de complemento a dos (§2.1 y §3.4.1), y eso es lo que hace nuestro programa:
+El literal se controla, pero el resultado de una operación también puede salirse del rango. El manual establece que, cuando una operación entre enteros se desborda, el resultado da la vuelta según la aritmética de complemento a dos (§2.1 y §3.4.1). Lua devolvería `-8246744073709551617` para la entrada que sigue, pero el Mini-REPL prefiere avisar:
 
 ```text
-rpn> 9223372036854775807 1 +
--9223372036854775808
+rpn> 9199999999999999999 1000000000000000000 +
+[arithmetic_overflow] el resultado de + excede el rango de enteros
 ```
 
-Para el alcance de esta asignación lo dejamos así y lo documentamos aquí. Corregirlo exigiría comprobar el desbordamiento en `number_result` antes de crear el valor.
+La comprobación se hace antes de operar, con `math.maxinteger` y `math.mininteger`:
+
+```lua
+local function checked_add(a, b)
+    if b > 0 and a > MAX_INT - b then return nil end
+    if b < 0 and a < MIN_INT - b then return nil end
+    return a + b
+end
+```
+
+La resta es análoga. La multiplicación verifica el producto dividiéndolo por uno de los factores, con casos especiales para `0` y `-1` porque `MIN_INT // -1` también desborda. La división entera controla aparte `math.mininteger / -1`. Cuando alguna de estas funciones devuelve `nil`, `number_value` produce el error `arithmetic_overflow`. Como `apply_operator` valida antes de desapilar, los operandos quedan intactos.
 
 Por último, el tokenizador no acepta notación científica: `1e3` no encaja en los patrones de `is_integer_literal` ni de `is_float_literal` y se rechaza como token inválido. Sí acepta formas como `.5` y `5.`, que son decimales.
 
@@ -661,7 +691,7 @@ Por último, el tokenizador no acepta notación científica: `1e3` no encaja en 
 
 En Lua las funciones son valores como cualquier otro: se pueden guardar en variables y en tablas, pasar como argumento y devolver como resultado (Ierusalimschy et al., 2020, §2.1). La forma `function M.tokenize(line) ... end` es una abreviatura de `M.tokenize = function(line) ... end` (§3.4.11). Es decir, las funciones públicas de cada módulo son campos de la tabla `M`. Las privadas se declaran con `local function` y no se pueden usar desde otro archivo.
 
-La tabla `OPERATORS` de la sección 3.4 aprovecha que las funciones son valores: cada entrada guarda una función anónima en el campo `apply`. Esas funciones usan `number_result`, `Value` y `Result`, que son variables locales del módulo declaradas fuera de ellas. Lua llama *upvalue* a una variable local de un nivel externo que una función interna usa (§3.5). Cada vez que se ejecuta `+`, la función anónima encuentra `number_result` a través de ese upvalue, sin que nadie se la pase como argumento.
+La tabla `OPERATORS` de la sección 3.4 aprovecha que las funciones son valores: cada entrada guarda una función anónima en el campo `apply`. Esas funciones usan `number_value`, `Value` y `Result`, que son variables locales del módulo declaradas fuera de ellas. Lua llama *upvalue* a una variable local de un nivel externo que una función interna usa (§3.5). Cada vez que se ejecuta `+`, la función anónima encuentra `number_value` a través de ese upvalue, sin que nadie se la pase como argumento.
 
 ### 4.2 Varios resultados y la convención (valor, error)
 
@@ -719,7 +749,7 @@ local function push(stack, value)
 end
 ```
 
-(`src/evaluator.lua`, líneas 21 a 24.) `#stack` es el operador de longitud, que en una tabla usada como arreglo da la posición del último elemento (Ierusalimschy et al., 2020, §3.4.7). Para retirar elementos usamos `table.remove(stack)`, que sin un segundo argumento quita el último (§6.6). Ninguna de estas funciones devuelve la pila: la modifican en su lugar y el REPL ve los cambios porque comparte la misma tabla. Por la misma razón `REPL.clear` borra los elementos uno por uno en vez de hacer `stack = {}`: esa asignación solo cambiaría la variable local de `clear` y dejaría intacta la pila del REPL. Las pruebas lo comprueban:
+(`src/evaluator.lua`, líneas 21 a 24.) `#stack` es el operador de longitud, que en una tabla usada como arreglo da la posición del último elemento (Ierusalimschy et al., 2020, §3.4.7). Para retirar elementos usamos `table.remove(stack)`, que sin un segundo argumento quita el último (§6.6). En `apply_operator` y `assign` los operandos se leen primero con `stack[#stack]` y solo se retiran después de validar, para que un error no deje la pila a medias. Ninguna de estas funciones devuelve la pila: la modifican en su lugar y el REPL ve los cambios porque comparte la misma tabla. Por la misma razón `REPL.clear` borra los elementos uno por uno en vez de hacer `stack = {}`: esa asignación solo cambiaría la variable local de `clear` y dejaría intacta la pila del REPL. Las pruebas lo comprueban:
 
 ```lua
 local stack = {}
@@ -839,12 +869,14 @@ El Mini-REPL evalúa `+`, `-`, `*`, `/`, `==`, `!=`, `<` y `>` sobre la pila en 
 | `5 0 /` | `[division_by_zero] división por cero` |
 | `5 +` | `[stack_underflow] el operador + necesita 2 valores y la pila tiene 1` |
 | `x =` | `[stack_underflow] la asignación = necesita 2 valores y la pila tiene 1` |
+| `9199999999999999999 1000000000000000000 +` | `[arithmetic_overflow] el resultado de + excede el rango de enteros` |
 | `3 #` | `[invalid_token] token inválido '#' en la columna 3` |
 | `1 vars` | `[invalid_token] 'vars' es un comando y debe escribirse solo en la línea` |
 | `99999999999999999999` | `[invalid_token] el entero '99999999999999999999' está fuera del rango permitido` |
 | `y` (sin definir) | `[undefined_variable] la variable 'y' no está definida` |
 | `5 3 =` | `[invalid_assignment] antes del valor debe ir el nombre de una variable, pero se encontró un int` |
 | `end` (sin bloque) | `[no_open_block] 'end' sin 'begin': no hay ningún bloque abierto` |
+| 1001 `begin` seguidos | `[max_depth_exceeded] se alcanzó el límite de 1000 bloques anidados` |
 
 Si una línea deja más de un valor en la pila, se imprime el de arriba: `1 2 3` imprime `3`.
 
@@ -861,8 +893,8 @@ function M.assign(stack, env)
     if #stack < 2 then
         return underflow("la asignación =", 2, #stack)
     end
-    local value_item = table.remove(stack)
-    local target = table.remove(stack)
+    local value_item = stack[#stack]
+    local target = stack[#stack - 1]
 
     if not Value.is_name(target) then
         return Result.fail(Errors.new(Errors.Code.INVALID_ASSIGNMENT,
@@ -873,6 +905,9 @@ function M.assign(stack, env)
 
     local value, err = M.resolve(value_item)
     if err then return nil, err end
+
+    table.remove(stack)
+    table.remove(stack)
     return Environment.define(env, target.name, value)
 end
 ```
@@ -902,7 +937,7 @@ end
 
 ### 6.5 Verificación automática
 
-`tests/test_evaluator.lua` no depende de ninguna biblioteca externa. Define una función `check` que cuenta aciertos y fallos, y agrupa las pruebas por tema: aritmética y comparaciones, errores controlados, variables, alcance, paso de parámetros, memoria, metatablas y una sesión completa. Esa última prueba alimenta al REPL con una lista de líneas en lugar del teclado, porque `REPL.run` recibe como parámetros las funciones de entrada, salida e indicador:
+`tests/test_evaluator.lua` no depende de ninguna biblioteca externa. Define una función `check` que cuenta aciertos y fallos, y agrupa las pruebas por tema: aritmética y comparaciones, errores controlados, variables, alcance (incluido el límite de anidamiento), paso de parámetros, memoria, metatablas y una sesión completa. Esa última prueba alimenta al REPL con una lista de líneas en lugar del teclado, porque `REPL.run` recibe como parámetros las funciones de entrada, salida e indicador:
 
 ```lua
 function M.run(input, output, write_prompt)
@@ -914,11 +949,7 @@ function M.run(input, output, write_prompt)
     end
 ```
 
-(`src/repl.lua`, líneas 52 a 58.) Si no se le pasa nada, usa el teclado y la pantalla; en la prueba recibe funciones que leen de una lista y guardan lo impreso en otra. Así la prueba compara línea por línea la salida real con la esperada, y la sesión de ejemplo del `README.md` es exactamente la que verifica. La ejecución completa terminó con este resultado:
-
-```text
-86 pruebas correctas, 0 fallidas
-```
+(`src/repl.lua`, líneas 52 a 58.) Si no se le pasa nada, usa el teclado y la pantalla; en la prueba recibe funciones que leen de una lista y guardan lo impreso en otra. Así la prueba compara línea por línea la salida real con la esperada, y la sesión de ejemplo del `README.md` es exactamente la que verifica. La ejecución completa termina informando cero comprobaciones fallidas.
 
 ## Bibliografía
 
