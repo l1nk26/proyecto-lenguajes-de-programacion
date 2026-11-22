@@ -1,0 +1,46 @@
+## UNIVERSIDAD DE CARABOBO
+
+**Facultad Experimental de Ciencias y Tecnología**
+**U.A. de Algoritmos, Programación y Lenguajes**
+**CAO604: Lenguajes de Programación**
+**Asignación #1**
+**Semestre 1-2026**
+**FACYT**
+
+**Instrucciones generales:** En grupos de dos personas escogerán un lenguaje de programación (que no sea C, C++, Python o JavaScript). Los lenguajes seleccionados deben ser distintos entre sí, por lo que deberán coordinarse previamente. Algunas opciones sugeridas son:
+
+1. Rust
+2. Go
+3. TypeScript
+4. Nim
+5. Zig
+6. Elixir / Kotlin
+
+La asignación consta de dos partes obligatorias e interconectadas:
+
+### Parte I: Reporte Técnico
+
+Elaborarán un informe desde el punto de vista del diseño e implementación del lenguaje seleccionado, haciendo uso de su especificación oficial y apoyándose directamente en extractos del código desarrollado en la Parte II:
+
+1. Nombres, vinculación (binding), estructuras de control y reglas de alcance (scoping).
+2. Sistema de tipos de datos y detalle de cómo el lenguaje realiza el chequeo de tipos (estático, dinámico, inferencia, equivalencia).
+3. Subrutinas, mecanismos de paso de parámetros y manejo de memoria.
+4. Abstracción de datos y conceptos de programación orientada a objetos (o su equivalente mediante composición, traits o interfaces, según aplique).
+
+### Parte II: Componente Práctico (Evaluador Postfijo / Mini-REPL en RPN)
+
+Deberán desarrollar una aplicación interactiva de consola (REPL) en el lenguaje escogido que evalúe expresiones matemáticas y lógicas utilizando obligatoriamente Notación Polaca Inversa (Postfija / RPN) basada en una pila (stack), poniendo en práctica los 4 puntos analizados en el reporte.
+
+El uso de notación postfija es estricto (por ejemplo, `x 10` para asignar y `x 5 + 2 *` para evaluar $(x + 5) \times 2$), lo que permite tokenizar la entrada separando por espacios y concentrar el diseño en la semántica, memoria y sistema de tipos del lenguaje anfitrión. El Mini-REPL deberá cumplir con los siguientes cuatro requisitos técnicos:
+
+1. **Evaluación en Pila y Manejo de Errores:** Soportar operaciones aritméticas básicas (`+`, `-`, `*`, `/`) y comparaciones lógicas (`==`, `!=`, `<`, `>`) operando sobre la pila en orden postfijo. Debe manejar errores de ejecución (división por cero, pila insuficiente / stack underflow o tokens inválidos) utilizando el mecanismo idiomático del lenguaje (`Result`, `Optional`, tuplas `(valor, error)` o excepciones) sin que el programa aborte abruptamente.
+2. **Sistema de Tipos del Evaluador:** Representar los tokens, operadores y valores de la pila utilizando los tipos compuestos del lenguaje anfitrión (*enums* algebraicos, *tagged unions*, *variants* o *interfaces*/*clases*). El evaluador debe distinguir al menos entre números (`Int`/`Float`) y booleanos (`Bool`), reportando un error de tipos controlado si se intenta una operación inválida en la pila (ej. `5 true +`).
+3. **Variables y Paso de Parámetros:** Permitir declarar o actualizar variables en notación postfija (ej. `x 10 =` o `x 5 2 + =`) y consultar las variables activas en memoria (comando `vars`). La tabla de símbolos (entorno) y la pila de evaluación deben pasarse explícitamente a las subrutinas para demostrar en el código y en el reporte cómo maneja el lenguaje la mutabilidad y el paso por valor vs. referencia, punteros o préstamo (*borrowing*).
+4. **Alcance Local (Scoping y Shadowing):** Incluir comandos de apertura y cierre de bloque (por ejemplo, `begin` y `end`) que creen un entorno local temporal. Las variables definidas o modificadas dentro de este ámbito local no deben sobrescribir permanentemente las variables homónimas del entorno global una vez cerrado el bloque.
+
+### Entregables:
+
+* Documento en formato PDF con el reporte técnico (explicando cómo cada punto teórico se ve reflejado en su implementación del Mini-REPL).
+* Enlace al repositorio de código con un archivo `README.md` detallando cómo compilar y ejecutar el proyecto, junto con una breve sesión de prueba de ejemplo (entradas en RPN y salidas esperadas).
+
+La asignación debe ser entregada a más tardar el día **24 de Noviembre del 2026** al correo `pelayjesus@pm.me`.

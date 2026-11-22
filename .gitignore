@@ -1,0 +1,11 @@
+# Artefactos de Lua
+*.luac
+*.out
+
+# Sistema operativo / editores
+.DS_Store
+Thumbs.db
+*.swp
+
+# Logs
+*.log
