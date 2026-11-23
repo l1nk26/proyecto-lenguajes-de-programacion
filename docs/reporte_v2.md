@@ -699,7 +699,7 @@ print(numero, tabla[1])
 
 El número no cambió; el contenido de la tabla sí. Lua no tiene punteros a variables ni un mecanismo de préstamo como el de Rust, así que no hay forma de pasar "la variable misma".
 
-El enunciado pide pasar la pila y la tabla de símbolos de forma explícita a las subrutinas (Universidad de Carabobo, 2026). El paso explícito se mantiene en todas las funciones que las usan: `push_number(lexeme, stack)`, `push_variable(name, stack, env)`, `apply_operator(op, stack)`, `assign(stack, env)` y `eval(tokens, stack, env)`. La pila muestra el primer caso del ejemplo. `push` agrega un elemento a la tabla que recibe:
+El enunciado pide pasar la pila y la tabla de símbolos de forma explícita a las subrutinas. El paso explícito se mantiene en todas las funciones que las usan: `push_number(lexeme, stack)`, `push_variable(name, stack, env)`, `apply_operator(op, stack)`, `assign(stack, env)` y `eval(tokens, stack, env)`. La pila muestra el primer caso del ejemplo. `push` agrega un elemento a la tabla que recibe:
 
 ```lua
 local function push(stack, value)
@@ -817,7 +817,7 @@ La herencia tiene un equivalente parcial en la cadena de entornos. Un bloque que
 
 ## 6. Cumplimiento de los requisitos técnicos de la Parte II
 
-Las secciones 2 a 5 explican el código que cumple cada punto del enunciado (Universidad de Carabobo, 2026). A continuación se reúnen con una salida real:
+Las secciones 2 a 5 explican el código que cumple cada punto del enunciado. A continuación se reúnen con una salida real:
 
 | Requisito | Dónde está | Ejemplo |
 | --- | --- | --- |
