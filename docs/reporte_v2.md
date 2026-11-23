@@ -1,6 +1,6 @@
 # Mini-REPL en notación polaca inversa escrito en Lua 5.4
 
-## Reporte técnico (Parte I)
+## Reporte técnico (Partes I y II)
 
 Universidad de Carabobo
 
@@ -18,9 +18,9 @@ Repositorio: https://github.com/l1nk26/proyecto-lenguajes-de-programacion
 
 El Mini-REPL es un programa de consola. Muestra un indicador (`rpn> `), espera a que el usuario escriba una línea, la evalúa e imprime el resultado; después vuelve a mostrar el indicador. Ese ciclo de leer, evaluar, imprimir y repetir es lo que da nombre a un REPL (por las siglas en inglés de *read, eval, print, loop*).
 
-Las expresiones se escriben en notación polaca inversa, también llamada postfija: primero van los operandos y después el operador. Lo que en notación infija se escribe como `(x + 5) * 2` aquí se escribe `x 5 + 2 *`, tal como lo exige el enunciado. Para evaluar esa notación se usa una pila, que funciona como una pila de platos: el último valor que se coloca encima es el primero que se retira. Cada número se coloca en la pila y cada operador retira los dos valores de arriba, hace la cuenta y coloca el resultado.
+Las expresiones se escriben en notación polaca inversa, también llamada postfija (Hamblin, 1962): primero van los operandos y después el operador. Lo que en notación infija se escribe como `(x + 5) * 2` aquí se escribe `x 5 + 2 *`, tal como lo exige el enunciado. Para evaluar esa notación se usa una pila: cada número se apila y cada operador toma los dos valores superiores, aplica la operación y apila el resultado.
 
-Separamos el programa en ocho archivos dentro de `src/`. Cada uno es un módulo, es decir, un archivo de Lua que agrupa funciones relacionadas y las entrega a quien lo pida con `require`.
+El programa se organiza en ocho archivos dentro de `src/`. Cada uno es un módulo, es decir, un archivo de Lua que agrupa funciones relacionadas y las entrega a quien lo pida con `require`.
 
 | Archivo | Responsabilidad |
 | --- | --- |
@@ -46,9 +46,9 @@ function M.eval_line(line, stack, env)
 end
 ```
 
-(`src/repl.lua`, líneas 28 a 35.) El tokenizador convierte el texto en una lista de *tokens*, que son las palabras de la línea ya clasificadas. Si alguna palabra no encaja en ninguna clase, la línea se rechaza antes de evaluar nada. Si todas son válidas, el evaluador recorre los tokens de izquierda a derecha y, al terminar, devuelve el valor que quedó encima de la pila. El REPL lo imprime y espera la siguiente línea.
+(`src/repl.lua`, líneas 29 a 35.) Una palabra que no encaja en ninguna clase rechaza la línea antes de evaluarla.
 
-Cada línea se trata como una expresión independiente: la pila se vacía antes de evaluarla. El entorno, en cambio, persiste entre líneas, de modo que `x 10 =` y `x 1 +` pueden escribirse por separado. Un error no deja valores residuales en la pila.
+Cada línea se trata como una expresión independiente: la pila se vacía antes de evaluarla. El entorno, en cambio, persiste entre líneas, de modo que `x 10 =` y `x 1 +` pueden escribirse por separado. Un error no desapila los operandos: la pila sigue como estaba hasta que `clear` la vacía en la siguiente línea.
 
 Lua no tiene un paso de compilación separado. El intérprete carga cada archivo, lo traduce a instrucciones de su máquina virtual y las ejecuta en el mismo momento (Ierusalimschy et al., 2020, sección 3.3.2). Por eso basta con ejecutar, desde la raíz del repositorio:
 
@@ -62,7 +62,7 @@ Todas las pruebas de este reporte se hicieron con el intérprete Lua 5.4.6 en Wi
 
 ### 2.1 Nombres en Lua y en el proyecto
 
-En Lua un nombre (o identificador) es cualquier secuencia de letras latinas, dígitos y guiones bajos que no empiece por un dígito y que no sea una palabra reservada (Ierusalimschy et al., 2020, sección 3.1). Copiamos esa misma regla para los nombres de variable del Mini-REPL. La función que la aplica es una línea con un patrón de texto:
+En Lua un nombre (o identificador) es cualquier secuencia de letras latinas, dígitos y guiones bajos que no empiece por un dígito y que no sea una palabra reservada (Ierusalimschy et al., 2020, sección 3.1). El Mini-REPL adopta esa misma regla para sus nombres de variable. La función que la aplica es una línea con un patrón de texto:
 
 ```lua
 local function is_identifier(lexeme)
@@ -74,7 +74,7 @@ end
 
 Lua distingue tres clases de variables: globales, locales y campos de tabla (Ierusalimschy et al., 2020, sección 3.2). El detalle con mayor impacto en el proyecto es que todo nombre se considera global salvo que se declare con `local`. Un acceso a una global `x` equivale, según el manual, a leer `_ENV.x`, donde `_ENV` es la tabla que contiene el entorno global (sección 2.2). Esto quiere decir que un error de tipeo en el nombre de una variable no produce un error al cargar el archivo: Lua simplemente lee una global que no existe y obtiene `nil`.
 
-Para no caer en eso declaramos con `local` todo lo que define cada archivo, y cada módulo construye una tabla local `M` que devuelve al final. Así empieza el evaluador:
+Cada archivo declara con `local` todo lo que define y construye una tabla local `M` que devuelve al final. Así empieza el evaluador:
 
 ```lua
 local Result = require("result")
@@ -126,7 +126,7 @@ function M.define(env, name, value)
 end
 ```
 
-(`src/environment.lua`, líneas 56 a 59.)
+(`src/environment.lua`, líneas 60 a 63.)
 
 La tercera decisión concierne al momento en que se lee el valor de una variable que aparece en la expresión. La palabra `x` puede cumplir dos papeles. En `x 5 +` hace falta su valor. En `x 10 =` hace falta su nombre, y puede que `x` todavía no exista. Ambos casos se resuelven con una sola regla: cuando el evaluador encuentra un identificador, apila una ficha que lleva el nombre y el valor que la variable tiene en ese instante.
 
@@ -137,7 +137,7 @@ function M.push_variable(name, stack, env)
 end
 ```
 
-(`src/evaluator.lua`, líneas 117 a 120.) Si la variable no existe, la ficha lleva `nil` como valor y no pasa nada todavía. El error aparece solo si alguien necesita ese valor, que es justo lo que hace `resolve`:
+(`src/evaluator.lua`, líneas 194 a 197.) Si la variable no existe, la ficha lleva `nil` como valor y no pasa nada todavía. El error aparece solo si alguien necesita ese valor, que es justo lo que hace `resolve`:
 
 ```lua
 function M.resolve(item)
@@ -154,7 +154,7 @@ function M.resolve(item)
 end
 ```
 
-(`src/evaluator.lua`, líneas 28 a 39.) Como el valor se fija en el momento de apilar, `x x 1 + =` funciona: las dos fichas de `x` se crean antes de la asignación y ambas llevan el valor viejo, así que `x` pasa de 7 a 8. Un efecto menos evidente se observa en la consola. En `begin x 99 = x end`, la segunda `x` se apila cuando la variable local del bloque vale 99. Al cerrar el bloque esa variable desaparece, pero la ficha ya llevaba el 99, y eso es lo que se imprime:
+(`src/evaluator.lua`, líneas 40 a 51.) Como el valor se fija en el momento de apilar, `x x 1 + =` funciona: las dos fichas de `x` se crean antes de la asignación y ambas llevan el valor viejo, así que `x` pasa de 7 a 8. Un efecto menos evidente se observa en la consola. En `begin x 99 = x end`, la segunda `x` se apila cuando la variable local del bloque vale 99. Al cerrar el bloque esa variable desaparece, pero la ficha ya llevaba el 99, y eso es lo que se imprime:
 
 ```text
 rpn> x 7 =
@@ -210,7 +210,7 @@ El bucle principal del REPL usa `while true` y sale con `break`:
 
 (`src/repl.lua`, líneas 66 a 100.) Hay dos salidas del bucle. Una es el comando `exit` (o `quit`). La otra es que `io.read` devuelva `nil`, cosa que pasa cuando se acaba la entrada; gracias a eso el programa termina limpio si se le pasa un archivo por tubería o si el usuario cierra la entrada (en la consola de Windows, con Ctrl+Z seguido de Enter).
 
-La pila se vacía con un `for` numérico de paso negativo, que recorre los índices desde el último hasta el primero:
+La pila se vacía con este `for` numérico:
 
 ```lua
 function M.clear(stack)
@@ -266,9 +266,9 @@ function M.eval(tokens, stack, env)
 end
 ```
 
-(`src/evaluator.lua`, líneas 194 a 226.) El segundo sustituto es una tabla de despacho para los operadores, que veremos en la sección 3.4: en vez de preguntar "¿es `+`?, ¿es `-`?", se busca el operador como clave en una tabla y se obtiene directamente la función que lo implementa.
+(`src/evaluator.lua`, líneas 278 a 310.) El segundo sustituto es la tabla `OPERATORS` (sección 3.4), que asocia cada lexema con su función de aplicación.
 
-La línea `if err then return nil, err, env end` se repite con variaciones en casi todas las funciones. Es la forma en que propagamos los errores: en cuanto algo falla, la función se detiene y devuelve el error a quien la llamó. El manual exige que `return` sea la última instrucción de su bloque (sección 3.3.4); dentro de un `if ... end` lo es, así que el patrón es válido en cualquier punto de la función.
+La línea `if err then return nil, err, env end` se repite con variaciones en casi todas las funciones y es la forma en que se propaga el error. Dado que `return` debe ser la última instrucción de su bloque (sección 3.3.4), dentro de `if ... end` puede aparecer en cualquier punto de la función.
 
 ### 2.4 Reglas de alcance
 
@@ -276,7 +276,7 @@ El alcance de un nombre es la parte del programa en la que ese nombre se puede u
 
 Eso es el ocultamiento (*shadowing*): la variable del bloque tapa a la exterior mientras el bloque está abierto, pero no la modifica. Más abajo se muestra cómo se reproduce con `begin` y `end`.
 
-Las reglas de alcance de Lua no se aplican directamente a las variables del usuario, que no son variables de Lua (sección 2.1). Por ello el Mini-REPL construye su propio sistema de bloques. Cada entorno es una tabla con sus variables, una referencia a su entorno padre y un número que indica la profundidad:
+Las variables del usuario no son variables de Lua (sección 2.1), por lo que el Mini-REPL construye su propio sistema de bloques. Cada entorno es una tabla con sus variables, una referencia a su entorno padre y un número que indica la profundidad:
 
 ```lua
 function M.new(parent)
@@ -288,7 +288,7 @@ function M.new(parent)
 end
 ```
 
-(`src/environment.lua`, líneas 15 a 21.) El entorno global no tiene padre y su profundidad es 0. Cada `begin` crea un entorno hijo del actual, y `end` devuelve el padre:
+(`src/environment.lua`, líneas 19 a 25.) El entorno global no tiene padre y su profundidad es 0. Cada `begin` crea un entorno hijo del actual, y `end` devuelve el padre:
 
 ```lua
 function M.open(current)
@@ -314,9 +314,9 @@ function M.close(current)
 end
 ```
 
-`Environment.MAX_DEPTH` fija en 1000 el número máximo de bloques anidados. Sin ese límite, cada `begin` agregaría una tabla a la cadena de padres y el programa seguiría hasta agotar la memoria; ahí Lua lanzaría un error de memoria que el `pcall` del REPL mostraría como `internal_error`, un error imprevisto y no uno del usuario. Con el límite, el bloque 1001 responde `[max_depth_exceeded] se alcanzó el límite de 1000 bloques anidados`. También evita que `lookup` y `vars`, que recorren la cadena, deban subir por un número arbitrario de niveles.
+`Environment.MAX_DEPTH` fija en 1000 el número máximo de bloques anidados: el bloque 1001 responde `[max_depth_exceeded]` en lugar de agotar la memoria y provocar un `internal_error`. El límite además acota el recorrido de `lookup` y `vars`.
 
-(`src/environment.lua`, líneas 73 a 87.) Para buscar una variable se empieza por el entorno actual y se sube por la cadena de padres hasta encontrarla o llegar al final:
+(`src/environment.lua`, líneas 77 a 97.) Para buscar una variable se empieza por el entorno actual y se sube por la cadena de padres hasta encontrarla o llegar al final:
 
 ```lua
 function M.lookup(env, name)
@@ -332,7 +332,7 @@ function M.lookup(env, name)
 end
 ```
 
-(`src/environment.lua`, líneas 32 a 42.) Esta búsqueda es la que produce el ocultamiento: si `x` existe en el bloque y en el global, se encuentra primero la del bloque y la búsqueda se detiene ahí.
+(`src/environment.lua`, líneas 36 a 46.) Esta búsqueda es la que produce el ocultamiento: si `x` existe en el bloque y en el global, se encuentra primero la del bloque y la búsqueda se detiene ahí.
 
 La decisión central concierne al comportamiento de `=` dentro de un bloque cuando la variable ya existe afuera. El módulo define dos funciones. `define` (mostrada en 2.2) siempre escribe en el entorno actual. `set` busca dónde existe la variable y escribe allí, aunque sea en el global:
 
@@ -347,7 +347,7 @@ function M.set(env, name, value)
 end
 ```
 
-(`src/environment.lua`, líneas 64 a 71.) El evaluador emplea `define` deliberadamente. Con `set`, escribir `x 99 =` dentro de un bloque cambiaría la `x` global, lo cual está prohibido por el enunciado. `set` permanece en el módulo y se prueba en `tests/test_evaluator.lua` para mostrar la otra semántica posible, pero ninguna instrucción del Mini-REPL la usa. Comparado con Lua, el `=` del Mini-REPL se comporta como `local x = ...` dentro de un `do ... end`, y no como un `x = ...` sin `local`, que en Lua modificaría la variable externa.
+(`src/environment.lua`, líneas 68 a 75.) El evaluador emplea `define` deliberadamente. Con `set`, escribir `x 99 =` dentro de un bloque cambiaría la `x` global, lo cual está prohibido por el enunciado. `set` permanece en el módulo y se prueba en `tests/test_evaluator.lua` para mostrar la otra semántica posible, pero ninguna instrucción del Mini-REPL la usa. Comparado con Lua, el `=` del Mini-REPL se comporta como `local x = ...` dentro de un `do ... end`, y no como un `x = ...` sin `local`, que en Lua modificaría la variable externa.
 
 Una sesión real con bloques anidados se ve así (el número entre corchetes del indicador es la profundidad del bloque):
 
@@ -379,9 +379,7 @@ rpn> x
 7
 ```
 
-Dentro del bloque se ve la `x` global hasta que el bloque define la suya. Al cerrar el bloque la `x` global sigue valiendo 7 y la `z` local ya no existe. El comando `vars` muestra cada nombre una sola vez, con el valor que se ve desde el bloque actual.
-
-En el Mini-REPL no hay funciones definidas por el usuario, así que no se presenta la diferencia entre alcance léxico y alcance dinámico (en el dinámico el nombre se busca según quién llamó a quién durante la ejecución, no según el texto). Los bloques se anidan en el orden en que se escriben y la búsqueda sigue ese anidamiento.
+El comando `vars` muestra cada nombre una sola vez, con el valor visible desde el bloque actual.
 
 Hay un comportamiento que conviene señalar. Si una línea abre un bloque y después falla, el bloque queda abierto:
 
@@ -391,13 +389,13 @@ rpn> begin 5 0 /
 rpn[1]>
 ```
 
-Ocurre porque `eval` devuelve el entorno activo en el momento del error y el REPL lo adopta (`env = new_env`) aunque haya error. El bloque permanece abierto: los tokens se ejecutan en orden y `begin` ya se había ejecutado cuando llegó la división. Revertirlo exigiría conservar una copia del entorno previo a cada línea. El indicador `rpn[1]>` señala que el bloque sigue abierto, y una prueba automática lo fija para evitar cambios accidentales.
+El bloque queda abierto porque `eval` devuelve el entorno activo y el REPL lo adopta (`env = new_env`) aun con error: los tokens se ejecutan en orden y `begin` ya se había procesado. Revertirlo exigiría conservar una copia del entorno previo; una prueba automática fija este comportamiento.
 
 ## 3. Sistema de tipos y chequeo de tipos
 
 ### 3.1 Los tipos de Lua
 
-Lua es un lenguaje de tipado dinámico. El manual lo define en dos frases: las variables no tienen tipo, solo los valores, y no existen definiciones de tipos en el lenguaje (Ierusalimschy et al., 2020, sección 2.1). Dicho de otra forma, el programador nunca escribe "esta variable es un número"; cada valor sabe de qué tipo es y Lua lo comprueba en el momento de usarlo.
+Lua es un lenguaje de tipado dinámico (Scott, 2015; Sebesta, 2019). El manual lo define en dos frases: las variables no tienen tipo, solo los valores, y no existen definiciones de tipos en el lenguaje (Ierusalimschy et al., 2020, sección 2.1).
 
 Hay ocho tipos básicos: `nil`, `boolean`, `number`, `string`, `function`, `userdata`, `thread` y `table`. Para este proyecto importan `number`, `boolean`, `string`, `function`, `table` y `nil`. El tipo `number` tiene dos subtipos, `integer` y `float`; en la versión estándar los enteros son de 64 bits y los decimales de doble precisión (sección 2.1). La función `math.type` dice cuál de los dos subtipos tiene un número (sección 6.7). Este ejemplo muestra cómo se comportan:
 
@@ -413,7 +411,7 @@ La división `/` siempre produce un decimal, aunque el resultado sea exacto: `8/
 
 ### 3.2 Cómo comprueba los tipos Lua
 
-Lua no hace chequeo estático, es decir, no revisa los tipos antes de ejecutar el programa. Tampoco tiene inferencia de tipos en el sentido de lenguajes como Haskell o Rust, donde el compilador deduce el tipo de una variable que el programador no anotó: como las variables de Lua no tienen tipo, no hay nada que deducir. Toda la comprobación ocurre durante la ejecución. Si sumamos un número y un booleano, Lua lanza un error en ese momento. Lo verificamos así:
+Lua no hace chequeo estático: la comprobación ocurre durante la ejecución y no hay inferencia de tipos posible, porque las variables no tienen tipo (sección 2.1). La operación `5 + true` falla en ese instante:
 
 ```lua
 local ok, e = pcall(function() return 5 + true end) print(ok, e)
@@ -429,7 +427,7 @@ Para el Mini-REPL esto tiene una consecuencia directa. Si la comprobación queda
 
 ### 3.3 Una unión etiquetada para los valores de la pila
 
-Una unión etiquetada (*tagged union*) es un registro que puede contener una de varias variantes y que lleva un campo, la etiqueta, que dice cuál de ellas contiene. Lenguajes como Rust la ofrecen directamente con `enum`. Lua no tiene nada parecido, así que la construimos con una tabla que tiene un campo `kind` (la etiqueta) y un campo `value` (el dato):
+Una unión etiquetada (*tagged union*) es un registro que puede contener una de varias variantes y que lleva un campo, la etiqueta, que dice cuál de ellas contiene. Lenguajes como Rust la ofrecen directamente con `enum`. Lua no dispone de esa construcción, por lo que se representa con una tabla:
 
 ```lua
 M.Kind = {
@@ -502,7 +500,7 @@ local OPERATORS = {
 }
 ```
 
-(`src/evaluator.lua`, líneas 63 a 72.) La comprobación la hace `check_types`, que mira solo las etiquetas:
+(`src/evaluator.lua`, líneas 140 a 149.) La comprobación la hace `check_types`, que mira solo las etiquetas:
 
 ```lua
 local function check_types(op, accepts, a, b)
@@ -524,7 +522,7 @@ local function check_types(op, accepts, a, b)
 end
 ```
 
-(`src/evaluator.lua`, líneas 74 a 90.) La equivalencia de tipos del Mini-REPL es, entonces, por nombre de etiqueta: dos operandos son compatibles si sus etiquetas coinciden, con una excepción, que `int` y `float` se agrupan como "número". Es la misma relación que Lua establece entre sus subtipos `integer` y `float` dentro de `number`. La tabla siguiente resume las reglas que salen del código:
+(`src/evaluator.lua`, líneas 151 a 167.) La equivalencia de tipos del Mini-REPL es, entonces, por nombre de etiqueta: dos operandos son compatibles si sus etiquetas coinciden, con una excepción, que `int` y `float` se agrupan como "número". Es la misma relación que Lua establece entre sus subtipos `integer` y `float` dentro de `number`. La tabla siguiente resume las reglas que salen del código:
 
 | Operador | Operandos que acepta | Tipo del resultado |
 | --- | --- | --- |
@@ -533,7 +531,7 @@ end
 | `==`, `!=` | dos números o dos booleanos | `bool` |
 | `<`, `>` | dos números | `bool` |
 
-El evaluador es más estricto que Lua con `==`. En Lua, `5 == true` da `false` sin error; en el Mini-REPL, `5 true ==` es un error de tipos. Comparar un número con un booleano suele indicar una expresión mal escrita, por lo que se prefiere avisar antes que devolver `false`. `<` y `>` tampoco aceptan booleanos, porque ordenar `true` y `false` no tiene un significado claro.
+El evaluador es más estricto que Lua con `==`: en Lua `5 == true` da `false`, pero en el Mini-REPL `5 true ==` es un error de tipos, ya que comparar un número con un booleano suele indicar una expresión mal escrita. `<` y `>` tampoco aceptan booleanos, porque ordenar `true` y `false` carece de significado claro.
 
 El orden de las comprobaciones dentro de `apply_operator` determina qué error ve el usuario cuando hay más de un problema:
 
@@ -570,7 +568,7 @@ function M.apply_operator(op, stack)
 end
 ```
 
-(`src/evaluator.lua`, líneas 122 a 147.) Primero se verifica que haya dos valores en la pila, después que las variables existan, después los tipos y, por último, la operación en sí, que es donde se detecta la división por cero. Estas son salidas reales del programa:
+(`src/evaluator.lua`, líneas 199 a 228.) Primero se verifica que haya dos valores en la pila, después que las variables existan, después los tipos y, por último, la operación en sí, que es donde se detecta la división por cero. Estas son salidas reales del programa:
 
 ```text
 rpn> 5 true +
@@ -610,24 +608,32 @@ end
 
 Lua calcula `n` con el subtipo correcto, porque opera dos enteros como entero y cualquier mezcla como decimal (Ierusalimschy et al., 2020, sección 3.4.1). La función traslada esa regla a las etiquetas del evaluador y convierte un resultado fuera de rango en el error `arithmetic_overflow`.
 
-La división requiere un tratamiento aparte. En Lua `/` produce siempre un decimal, de modo que `8 2 /` daría `4.0`. Cuando los dos operandos son enteros y el resto es cero, el evaluador emplea la división entera `//`:
+La división requiere un tratamiento aparte. En Lua `/` produce siempre un decimal, de modo que `8 2 /` daría `4.0`. El evaluador emplea la división entera `//` cuando ambos operandos son enteros y la división es exacta; además rechaza `math.mininteger / -1` y cualquier cociente `inf` o `NaN`:
 
 ```lua
 local function divide(a, b)
     if b.value == 0 then
         return Result.fail(Errors.new(Errors.Code.DIVISION_BY_ZERO, "división por cero", "/"))
     end
-    -- Entre enteros, si la división es exacta el resultado sigue siendo Int.
-    if a.kind == Value.Kind.INT and b.kind == Value.Kind.INT and a.value % b.value == 0 then
-        return Result.ok(Value.int(a.value // b.value))
+    if int_pair(a, b) then
+        if a.value == MIN_INT and b.value == -1 then
+            return arithmetic_overflow("/", "math.mininteger / -1 excede el rango de enteros")
+        end
+        if a.value % b.value == 0 then
+            return Result.ok(Value.int(a.value // b.value))
+        end
     end
-    return Result.ok(Value.float(a.value / b.value))
+    local quotient = a.value / b.value
+    if quotient ~= quotient or quotient == math.huge or quotient == -math.huge then
+        return arithmetic_overflow("/", "el resultado de / excede el rango de flotantes")
+    end
+    return Result.ok(Value.float(quotient))
 end
 ```
 
-(`src/evaluator.lua`, líneas 49 a 58.) La condición `b.value == 0` también detecta `0.0`, porque para Lua `0.0 == 0` es verdadero. Así `5 0.0 /` da el mismo error que `5 0 /`, en lugar de devolver infinito, que es lo que daría la división decimal de Lua.
+(`src/evaluator.lua`, líneas 117 a 135.) La condición `b.value == 0` también detecta `0.0`, porque para Lua `0.0 == 0` es verdadero. Así `5 0.0 /` da el mismo error que `5 0 /`, en lugar de devolver infinito.
 
-Los números se leen con `tonumber`; un literal sin punto que no cabe en un entero de 64 bits se convierte en decimal (sección 3.1), así que `push_number` lo rechaza para evitar que un entero se convierta silenciosamente en `float`.
+Los números se leen con `tonumber`; un literal sin punto que no cabe en un entero de 64 bits se convierte en decimal (Ierusalimschy et al., 2020, sección 3.1), así que `push_number` lo rechaza para evitar que un entero se convierta silenciosamente en `float`.
 
 El resultado de una operación también puede salirse del rango. Cuando una operación entre enteros se desborda, Lua hace que el resultado dé la vuelta (secciones 2.1 y 3.4.1). El Mini-REPL prefiere avisar:
 
@@ -636,13 +642,13 @@ rpn> 9199999999999999999 1000000000000000000 +
 [arithmetic_overflow] el resultado de + excede el rango de enteros
 ```
 
-La revisión usa `math.maxinteger` y `math.mininteger` antes de operar; la resta, la multiplicación y la división entera cubren sus propios casos y, como `apply_operator` valida antes de desapilar, los operandos quedan intactos. El tokenizador no acepta notación científica, pero sí `.5` y `5.`.
+La revisión usa `math.maxinteger` y `math.mininteger` antes de operar; la resta, la multiplicación y la división entera cubren sus propios casos. El tokenizador no acepta notación científica, pero sí `.5` y `5.`.
 
 ## 4. Subrutinas, paso de parámetros y manejo de memoria
 
 ### 4.1 Funciones en Lua
 
-En Lua las funciones son valores como cualquier otro: se pueden guardar en variables y en tablas, pasar como argumento y devolver como resultado (Ierusalimschy et al., 2020, sección 2.1). La forma `function M.tokenize(line) ... end` es una abreviatura de `M.tokenize = function(line) ... end` (sección 3.4.11). Es decir, las funciones públicas de cada módulo son campos de la tabla `M`. Las privadas se declaran con `local function` y no se pueden usar desde otro archivo.
+En Lua las funciones son valores como cualquier otro: se pueden guardar en variables y en tablas, pasar como argumento y devolver como resultado (Ierusalimschy, 2016; Ierusalimschy et al., 2020, sección 2.1). La forma `function M.tokenize(line) ... end` es una abreviatura de `M.tokenize = function(line) ... end` (sección 3.4.11). Es decir, las funciones públicas de cada módulo son campos de la tabla `M`. Las privadas se declaran con `local function` y no se pueden usar desde otro archivo.
 
 La tabla `OPERATORS` de la sección 3.4 aprovecha que las funciones son valores: cada entrada guarda una función anónima en el campo `apply`. Esas funciones usan `number_value`, `Value` y `Result`, que son variables locales del módulo declaradas fuera de ellas. Lua llama *upvalue* a una variable local de un nivel externo que una función interna usa (sección 3.5). Cada vez que se ejecuta `+`, la función anónima encuentra `number_value` a través de ese upvalue, sin que nadie se la pase como argumento.
 
@@ -660,7 +666,7 @@ function M.fail(message)
 end
 ```
 
-(`src/result.lua`, líneas 10 a 16.) Una función que sale bien devuelve el valor y `nil`; una que falla devuelve `nil` y el error. La biblioteca estándar de Lua usa la misma idea: muchas de sus funciones devuelven "fail" (que hoy es `nil`) seguido de un mensaje de error cuando algo sale mal; la biblioteca de entrada y salida, por ejemplo, lo hace en todas sus funciones (secciones 6 y 6.8). Se sigue esa costumbre en lugar de introducir un objeto `Result` con métodos, que en Lua habría resultado superfluo.
+(`src/result.lua`, líneas 10 a 16.) La biblioteca estándar de Lua usa la misma idea: muchas de sus funciones devuelven "fail" (que hoy es `nil`) seguido de un mensaje de error cuando algo sale mal; la biblioteca de entrada y salida, por ejemplo, lo hace en todas sus funciones (secciones 6 y 6.8). Se sigue esa costumbre en lugar de introducir un objeto `Result` con métodos, que en Lua habría resultado superfluo.
 
 Cuando una función devuelve más valores de los que quien la llama recibe, los sobrantes se descartan, y si devuelve menos, los que faltan se rellenan con `nil` (sección 3.4.12). El proyecto se apoya en esa regla en varios sitios. `Environment.get` necesita solo el valor y escribe `local value = M.lookup(env, name)`, aunque `lookup` también devuelve el entorno donde encontró la variable. En sentido contrario, `apply_operator` recibe dos resultados de `check_types` y descarta el primero con el nombre `_`, una convención de Lua para indicar que el valor se descarta.
 
@@ -702,7 +708,7 @@ local function push(stack, value)
 end
 ```
 
-(`src/evaluator.lua`, líneas 21 a 24.) `#stack` es el operador de longitud, que en una tabla usada como arreglo da la posición del último elemento (Ierusalimschy et al., 2020, sección 3.4.7). Para retirar elementos se usa `table.remove(stack)`, que sin un segundo argumento quita el último (sección 6.6). En `apply_operator` y `assign` los operandos se leen primero con `stack[#stack]` y solo se retiran después de validar, para que un error no deje la pila en un estado intermedio. Ninguna de estas funciones devuelve la pila: la modifican en su lugar y el REPL ve los cambios porque comparte la misma tabla. Por la misma razón `REPL.clear` borra los elementos uno por uno en vez de hacer `stack = {}`: esa asignación solo cambiaría la variable local de `clear` y dejaría intacta la pila del REPL. Las pruebas lo confirman:
+(`src/evaluator.lua`, líneas 33 a 36.) `#stack` es el operador de longitud, que en una tabla usada como arreglo da la posición del último elemento (Ierusalimschy et al., 2020, sección 3.4.7). Para retirar elementos se usa `table.remove(stack)`, que sin un segundo argumento quita el último (sección 6.6). En `apply_operator` y `assign` los operandos se leen antes de retirarse. Ninguna de estas funciones devuelve la pila: la modifican en su lugar y el REPL ve los cambios porque comparte la misma tabla. Por la misma razón `REPL.clear` borra los elementos uno por uno en vez de hacer `stack = {}`: esa asignación solo cambiaría la variable local de `clear` y dejaría intacta la pila del REPL. Las pruebas lo confirman:
 
 ```lua
 local stack = {}
@@ -716,7 +722,7 @@ REPL.clear(stack)
 check("clear vacía la misma tabla", #stack == 0)
 ```
 
-(`tests/test_evaluator.lua`, líneas 149 a 157.)
+(`tests/test_evaluator.lua`, líneas 172 a 178 y 187 a 188.)
 
 El entorno muestra el segundo caso del ejemplo. Agregar o cambiar una variable modifica la tabla `env.vars`, y el cambio es visible desde fuera. Pero `begin` y `end` no modifican el entorno: cambian cuál es el entorno activo. Dentro de `eval`, la línea `if new_env then env = new_env end` reasigna la variable local `env`, y esa reasignación no llega al REPL. Por eso `eval` devuelve el entorno como tercer resultado y el REPL lo guarda con `env = new_env`. Las pruebas verifican que la variable de quien llama queda igual:
 
@@ -727,7 +733,7 @@ check("eval no cambia la variable del llamador; devuelve el entorno nuevo",
     caller_env.depth == 0 and returned_env.parent == caller_env)
 ```
 
-(`tests/test_evaluator.lua`, líneas 159 a 162.) Devolver el entorno nuevo es la forma que tiene Lua de hacer llegar a quien llama un cambio que no puede hacerse reasignando el parámetro; en el ejemplo anterior, `numero` siguió valiendo 5.
+(`tests/test_evaluator.lua`, líneas 190 a 193.)
 
 Compartir referencias tiene un riesgo: si dos partes del programa guardan la misma tabla y una la modifica, la otra ve el cambio inesperadamente. Después de `y x =`, la variable `y` guarda exactamente la misma tabla de valor que `x`, no una copia. El riesgo se evita tratando los valores como inmutables: una vez creados no se modifican. La convención está registrada al principio de `value.lua`:
 
@@ -742,7 +748,7 @@ Compartir referencias tiene un riesgo: si dos partes del programa guardan la mis
 
 Lua administra la memoria de forma automática. El programador no reserva ni libera memoria: un recolector de basura busca los objetos que el programa ya no puede alcanzar y los libera (Ierusalimschy et al., 2020, sección 2.5). Un objeto es inalcanzable cuando ninguna variable ni ningún otro objeto vivo lo referencia. El manual aclara que no hay garantía sobre el momento exacto: solo promete que no liberará nada que todavía se pueda usar y que tarde o temprano liberará lo inalcanzable.
 
-En el Mini-REPL se crean tablas todo el tiempo, por ejemplo una por cada token y otra por cada valor que pasa por la pila. No liberamos ninguna a mano. El caso interesante es el de los bloques. Cuando `end` ejecuta `Environment.close`, devuelve el padre y el REPL guarda ese padre como entorno activo. Nada apunta ya al bloque que se cerró (los hijos apuntan al padre, nunca al revés), así que el bloque y todas sus variables locales quedan disponibles para el recolector.
+En el Mini-REPL se crea una tabla por token y otra por valor apilado, sin liberación manual. El caso interesante es el de los bloques. Cuando `end` ejecuta `Environment.close`, devuelve el padre y el REPL guarda ese padre como entorno activo. Nada apunta ya al bloque que se cerró (los hijos apuntan al padre, nunca al revés), así que el bloque y todas sus variables locales quedan disponibles para el recolector.
 
 La liberación se comprobó con una tabla débil: una tabla cuyas referencias el recolector ignora, de modo que si un objeto solo está referenciado desde una tabla débil, el recolector lo libera igual. La debilidad se activa con el campo `__mode` de su metatabla (sección 2.5.4). La prueba guarda el bloque en una tabla débil, lo cierra, fuerza el recolector con `collectgarbage` y verifica que el bloque desapareció:
 
@@ -762,7 +768,7 @@ check("el entorno del bloque cerrado fue liberado", weak.block == nil)
 check("el entorno global sigue vivo", survivor ~= nil and survivor.depth == 0)
 ```
 
-(`tests/test_evaluator.lua`, líneas 165 a 177.) La prueba pasa. Se invoca dos veces a `collectgarbage` para no depender de la fase del ciclo. La pila, en cambio, es una sola tabla que `clear` reutiliza en cada línea.
+(`tests/test_evaluator.lua`, líneas 196 a 208.) Se invoca dos veces a `collectgarbage` para no depender de la fase del ciclo. La pila, en cambio, es una sola tabla que `clear` reutiliza en cada línea.
 
 ## 5. Abstracción de datos y equivalente de la programación orientada a objetos
 
@@ -799,7 +805,7 @@ end
 ErrorMeta.__tostring = M.format
 ```
 
-(`src/errors.lua`, líneas 18 a 35.) Sin esa metatabla, `print` sobre un valor mostraría algo como `table: 0x...`. Con ella muestra `2.5` o `[division_by_zero] división por cero`. Dos pruebas lo verifican (`tests/test_evaluator.lua`, líneas 180 a 182).
+(`src/errors.lua`, líneas 20 a 37.) Sin esa metatabla, `print` sobre un valor mostraría algo como `table: 0x...`. Con ella muestra `2.5` o `[division_by_zero] división por cero`. Dos pruebas lo verifican (`tests/test_evaluator.lua`, líneas 211 a 213).
 
 Lua ofrece una sintaxis con dos puntos para imitar métodos: `env:lookup(name)` equivale a `env.lookup(env, name)`, y al definir la función con `:` se agrega un parámetro oculto llamado `self` (sección 3.4.11). No se emplea esa sintaxis: al escribir `Environment.lookup(env, name)` el entorno queda como primer argumento visible, como pide el requisito 3 del enunciado. Con los dos puntos, ese paso quedaría oculto.
 
@@ -820,7 +826,7 @@ Las secciones 2 a 5 explican el código que cumple cada punto del enunciado (Uni
 | Variables y paso de parámetros | secciones 2.2 y 4.3 | `x 5 2 + =`, y `eval` devuelve el entorno nuevo |
 | Alcance local | sección 2.4 | `begin x 99 = x end` → `99`, y `x` vuelve a 7 al cerrar |
 
-Los errores esperados que cubrimos son estos:
+Los errores esperados son estos:
 
 | Entrada | Salida |
 | --- | --- |
@@ -838,8 +844,16 @@ Los errores esperados que cubrimos son estos:
 
 Si una línea deja más de un valor en la pila se imprime el de arriba: `1 2 3` imprime `3`. Las pruebas de `tests/test_evaluator.lua` son la misma sesión que aparece en el `README.md`: `REPL.run` recibe las funciones de entrada, salida e indicador como parámetros, así que la prueba puede alimentar el REPL con una lista de líneas en lugar del teclado.
 
-## Bibliografía
+## 7. Bibliografía
+
+Hamblin, C. L. (1962). Translation to and from Polish notation. *The Computer Journal, 5*(3), 210-212.
+
+Ierusalimschy, R. (2016). *Programming in Lua* (4.ª ed.). Lua.org.
 
 Ierusalimschy, R., de Figueiredo, L. H., & Celes, W. (2020). *Lua 5.4 reference manual*. Lua.org; PUC-Rio. Recuperado el 22 de noviembre de 2026, de https://www.lua.org/manual/5.4/
+
+Scott, M. L. (2015). *Programming language pragmatics* (4.ª ed.). Morgan Kaufmann.
+
+Sebesta, R. W. (2019). *Concepts of programming languages* (12.ª ed.). Pearson.
 
 Universidad de Carabobo, Facultad Experimental de Ciencias y Tecnología. (2026). *Asignación #1: CAO604 Lenguajes de Programación, semestre 1-2026* [Enunciado de la asignación].
